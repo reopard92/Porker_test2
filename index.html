@@ -1,512 +1,356 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Poker Recorder 7 - Japanese</title>
+import React, { useState, useEffect, useMemo } from 'react';
+
+// --- 1. ポーカーの基本データ ---
+const POSITIONS = ['UTG', 'UTG+1', 'UTG+2', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+const SUITS = ['♠', '♥', '♦', '♣'];
+const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+
+// --- 2. GTO風レンジデータ (プロトタイプ用のダミーデータ) ---
+// r: Raise(%), c: Call(%), f: Fold(%)
+// ※記載のないハンドはすべて f: 100 とみなす
+const MOCK_RANGES = {
+  'UTG': {
+    'AA': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '77': { r: 85, f: 15 }, '66': { r: 42, f: 58 }, '55': { r: 12, f: 88 },
+    'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A5s': { r: 34, f: 66 }, 'A4s': { r: 18, f: 82 },
+    'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 88, f: 12 },
+    'QJs': { r: 100, f: 0 }, 'QTs': { r: 58, f: 42 }, 'JTs': { r: 95, f: 5 }, 'T9s': { r: 47, f: 53 }, '98s': { r: 21, f: 79 },
+    'AKo': { r: 100, f: 0 }, 'AQo': { r: 92, f: 8 }, 'AJo': { r: 23, f: 77 }, 'KQo': { r: 61, f: 39 }
+  },
+  'HJ': {
+    'AA': { r: 100, f: 0 }, '22': { r: 44, f: 56 }, '33': { r: 52, f: 48 }, '44': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 },
+    'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'A8s': { r: 58, f: 42 }, 'A5s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A3s': { r: 41, f: 59 },
+    'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'K9s': { r: 63, f: 37 },
+    'QJs': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'Q9s': { r: 45, f: 55 },
+    'JTs': { r: 100, f: 0 }, 'J9s': { r: 55, f: 45 }, 'T9s': { r: 100, f: 0 }, '98s': { r: 100, f: 0 }, '87s': { r: 62, f: 38 }, '76s': { r: 31, f: 69 },
+    'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 68, f: 32 },
+    'KQo': { r: 100, f: 0 }, 'KJo': { r: 59, f: 41 }, 'QJo': { r: 27, f: 73 }
+  },
+  'BTN': {
+    'AA': { r: 100, f: 0 }, '22': { r: 100, f: 0 }, '33': { r: 100, f: 0 }, '44': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 },
+    'AKs': { r: 100, f: 0 }, 'A2s': { r: 100, f: 0 }, 'A3s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A5s': { r: 100, f: 0 }, 'A6s': { r: 100, f: 0 }, 'A7s': { r: 100, f: 0 }, 'A8s': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 },
+    'K2s': { r: 45, f: 55 }, 'K3s': { r: 52, f: 48 }, 'K4s': { r: 67, f: 33 }, 'K5s': { r: 100, f: 0 }, 'K6s': { r: 100, f: 0 }, 'K7s': { r: 100, f: 0 }, 'K8s': { r: 100, f: 0 }, 'K9s': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KQs': { r: 100, f: 0 },
+    'Q2s': { r: 0, f: 100 }, 'Q5s': { r: 61, f: 39 }, 'Q6s': { r: 100, f: 0 }, 'Q8s': { r: 100, f: 0 }, 'Q9s': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'QJs': { r: 100, f: 0 },
+    'J7s': { r: 48, f: 52 }, 'J8s': { r: 100, f: 0 }, 'J9s': { r: 100, f: 0 }, 'JTs': { r: 100, f: 0 },
+    'T7s': { r: 62, f: 38 }, 'T8s': { r: 100, f: 0 }, 'T9s': { r: 100, f: 0 },
+    '96s': { r: 33, f: 67 }, '97s': { r: 100, f: 0 }, '98s': { r: 100, f: 0 },
+    '85s': { r: 15, f: 85 }, '86s': { r: 100, f: 0 }, '87s': { r: 100, f: 0 },
+    '75s': { r: 42, f: 58 }, '76s': { r: 100, f: 0 },
+    '64s': { r: 21, f: 79 }, '65s': { r: 100, f: 0 },
+    '54s': { r: 100, f: 0 },
+    'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 100, f: 0 }, 'A9o': { r: 100, f: 0 }, 'A8o': { r: 100, f: 0 }, 'A7o': { r: 66, f: 34 }, 'A5o': { r: 72, f: 28 }, 'A4o': { r: 38, f: 62 },
+    'KQo': { r: 100, f: 0 }, 'KJo': { r: 100, f: 0 }, 'KTo': { r: 100, f: 0 }, 'K9o': { r: 100, f: 0 }, 'K8o': { r: 55, f: 45 }, 'K7o': { r: 28, f: 72 },
+    'QJo': { r: 100, f: 0 }, 'QTo': { r: 100, f: 0 }, 'Q9o': { r: 100, f: 0 }, 'Q8o': { r: 49, f: 51 },
+    'JTo': { r: 100, f: 0 }, 'J9o': { r: 100, f: 0 }, 'J8o': { r: 63, f: 37 },
+    'T9o': { r: 100, f: 0 }, 'T8o': { r: 57, f: 43 },
+    '98o': { r: 100, f: 0 }, '97o': { r: 24, f: 76 },
+    '87o': { r: 68, f: 32 }
+  }
+};
+
+// サポートしているポジションのリスト
+const SUPPORTED_POSITIONS = Object.keys(MOCK_RANGES);
+
+// --- 3. ユーティリティ関数 ---
+const getRandomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+// 具体的なカード（例：A♠, K♥）からハンドカテゴリ（例：AKo）を生成
+const getHandCategory = (card1, card2) => {
+  const rank1Index = RANKS.indexOf(card1.rank);
+  const rank2Index = RANKS.indexOf(card2.rank);
+  
+  let highRank = card1.rank;
+  let lowRank = card2.rank;
+  
+  if (rank2Index < rank1Index) {
+    highRank = card2.rank;
+    lowRank = card1.rank;
+  }
+  
+  if (highRank === lowRank) return `${highRank}${lowRank}`;
+  const suited = card1.suit === card2.suit ? 's' : 'o';
+  return `${highRank}${lowRank}${suited}`;
+};
+
+// 1つのカードをランダム生成
+const generateRandomCard = () => {
+  return {
+    rank: getRandomElement(RANKS),
+    suit: getRandomElement(SUITS)
+  };
+};
+
+export default function App() {
+  // --- State ---
+  const [streak, setStreak] = useState(0);
+  const [currentPos, setCurrentPos] = useState('');
+  const [handCards, setHandCards] = useState([]);
+  const [feedback, setFeedback] = useState(null); // null | { isCorrect: boolean, expectedRange: object, userAction: string }
+
+  // --- ゲーム進行ロジック ---
+  const generateNewHand = () => {
+    // データがあるポジションからランダムに選択
+    const nextPos = getRandomElement(SUPPORTED_POSITIONS);
     
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    // カードを2枚引く (同じカードが出ないようにする)
+    let c1 = generateRandomCard();
+    let c2 = generateRandomCard();
+    while (c1.rank === c2.rank && c1.suit === c2.suit) {
+      c2 = generateRandomCard();
+    }
     
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-
-    <style>
-        body {
-            font-family: 'Inter', 'Noto Sans JP', sans-serif;
-            background-color: #0f172a;
-            color: #f1f5f9;
-            overscroll-behavior: none;
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: manipulation;
+    // 練習アプリとして、Fold100%のゴミハンドばかり出ないように
+    // 50%の確率で、何らかのアクション頻度があるハンドを意図的に生成する（プロトタイプ用の工夫）
+    if (Math.random() > 0.5) {
+      const posRanges = MOCK_RANGES[nextPos];
+      const activeHands = Object.keys(posRanges);
+      if (activeHands.length > 0) {
+        const forcedHandCat = getRandomElement(activeHands); // 例: 'A5s'
+        c1.rank = forcedHandCat[0];
+        c2.rank = forcedHandCat[1];
+        if (forcedHandCat.length === 2) {
+          // ポケットペア
+          c1.suit = '♠'; c2.suit = '♥';
+        } else if (forcedHandCat[2] === 's') {
+          // スーテッド
+          const s = getRandomElement(SUITS);
+          c1.suit = s; c2.suit = s;
+        } else {
+          // オフスート
+          c1.suit = '♠'; c2.suit = '♥';
         }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-        
-        .poker-felt {
-            background-color: #1a4731;
-            background-image: 
-                radial-gradient(circle at center, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.2) 100%),
-                url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-        }
-        .card-shadow {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
-        }
-    </style>
-</head>
-<body>
-
-<div id="root"></div>
-
-<script type="text/babel">
-    const { useState, useEffect } = React;
-
-    // --- Icons ---
-    const Icon = ({ children, size = 20, className = "" }) => (
-        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
-    );
-    const Icons = {
-        Menu: (p) => <Icon {...p}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></Icon>,
-        X: (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></Icon>,
-        Save: (p) => <Icon {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></Icon>,
-        Trash: (p) => <Icon {...p}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></Icon>,
-        ArrowRight: (p) => <Icon {...p}><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></Icon>,
-        RotateCcw: (p) => <Icon {...p}><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></Icon>,
-        Plus: (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></Icon>,
-        User: (p) => <Icon {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></Icon>,
-    };
-
-    // --- Constants ---
-    const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
-    const SUITS = [
-        { symbol: '♠', color: 'text-gray-200', name: 's' },
-        { symbol: '♥', color: 'text-red-500', name: 'h' },
-        { symbol: '♦', color: 'text-blue-400', name: 'd' }, 
-        { symbol: '♣', color: 'text-green-500', name: 'c' } 
-    ];
-    const POSITIONS = ['SB', 'BB', 'UTG', 'HJ', 'CO', 'BTN'];
-    
-    // 表示用ラベルと保存値を分離、またはそのまま日本語を使用
-    // ここではシンプルに表示用として日本語を使用
-    const PREFLOP_ACTIONS = [
-        { id: 'RFI', label: 'RFI' },
-        { id: 'Call', label: 'コール' },
-        { id: '3Bet', label: '3Bet' },
-        { id: 'Limp', label: 'リンプ' },
-        { id: 'Fold', label: 'フォールド' },
-        { id: 'Walk', label: 'ウォーク' }
-    ];
-    const POSTFLOP_ACTIONS = [
-        { id: 'Check', label: 'チェック' },
-        { id: 'Bet S', label: 'ベット小' },
-        { id: 'Bet L', label: 'ベット大' },
-        { id: 'Raise', label: 'レイズ' },
-        { id: 'All-in', label: 'オールイン' },
-        { id: 'Fold', label: 'フォールド' }
-    ];
-
-    // --- Main App ---
-    function App() {
-        const [view, setView] = useState('table');
-        const [hands, setHands] = useState([]);
-        const [gameStage, setGameStage] = useState('pre'); // pre, flop, turn, river, showdown
-        
-        const [activeVillainIdx, setActiveVillainIdx] = useState(0);
-
-        const [currentHand, setCurrentHand] = useState({
-            id: null,
-            timestamp: null,
-            heroPos: 'BTN',
-            heroHoleCards: [null, null],
-            heroActions: { pre: null, flop: null, turn: null, river: null },
-            villains: [
-                { id: 1, pos: 'BB', holeCards: [null, null], actions: { pre: null, flop: null, turn: null, river: null } }
-            ],
-            board: [null, null, null, null, null],
-        });
-
-        const [activeCardTarget, setActiveCardTarget] = useState(null); 
-        const [tempRank, setTempRank] = useState(null);
-
-        useEffect(() => {
-            const saved = localStorage.getItem('poker_hands_v7');
-            if (saved) setHands(JSON.parse(saved));
-        }, []);
-
-        useEffect(() => {
-            localStorage.setItem('poker_hands_v7', JSON.stringify(hands));
-        }, [hands]);
-
-        // --- Logic ---
-        const addVillain = () => {
-            setCurrentHand(prev => ({
-                ...prev,
-                villains: [
-                    ...prev.villains,
-                    { 
-                        id: prev.villains.length + 1, 
-                        pos: '?', 
-                        holeCards: [null, null], 
-                        actions: { pre: null, flop: null, turn: null, river: null } 
-                    }
-                ]
-            }));
-            setActiveVillainIdx(currentHand.villains.length);
-        };
-
-        const updateVillain = (index, updates) => {
-            const newVillains = [...currentHand.villains];
-            newVillains[index] = { ...newVillains[index], ...updates };
-            setCurrentHand(prev => ({ ...prev, villains: newVillains }));
-        };
-
-        const updateVillainAction = (index, stage, actionId) => {
-            const newVillains = [...currentHand.villains];
-            const currentAction = newVillains[index].actions[stage];
-            const newAction = currentAction === actionId ? null : actionId;
-            
-            newVillains[index] = { 
-                ...newVillains[index], 
-                actions: { ...newVillains[index].actions, [stage]: newAction } 
-            };
-            setCurrentHand(prev => ({ ...prev, villains: newVillains }));
-        };
-
-        const updateHeroAction = (stage, actionId) => {
-            const currentAction = currentHand.heroActions[stage];
-            const newAction = currentAction === actionId ? null : actionId;
-            setCurrentHand(prev => ({
-                ...prev,
-                heroActions: { ...prev.heroActions, [stage]: newAction }
-            }));
-        };
-
-        const handleCardSelect = (rank, suit) => {
-            const newCard = { rank, suit: suit.name };
-            if (!activeCardTarget) return;
-            const { type, index, villainIdx } = activeCardTarget;
-
-            if (type === 'hero') {
-                const arr = [...currentHand.heroHoleCards]; arr[index] = newCard;
-                setCurrentHand(prev => ({ ...prev, heroHoleCards: arr }));
-                if (index === 0) setActiveCardTarget({ type: 'hero', index: 1 });
-                else setActiveCardTarget(null);
-            } else if (type === 'villain') {
-                const newVillains = [...currentHand.villains];
-                const arr = [...newVillains[villainIdx].holeCards]; arr[index] = newCard;
-                newVillains[villainIdx].holeCards = arr;
-                setCurrentHand(prev => ({ ...prev, villains: newVillains }));
-                if (index === 0) setActiveCardTarget({ type: 'villain', index: 1, villainIdx });
-                else setActiveCardTarget(null);
-            } else if (type === 'board') {
-                const arr = [...currentHand.board]; arr[index] = newCard;
-                setCurrentHand(prev => ({ ...prev, board: arr }));
-                if (gameStage === 'flop' && index < 2) setActiveCardTarget({ type: 'board', index: index + 1 });
-                else setActiveCardTarget(null);
-            }
-            setTempRank(null);
-        };
-
-        const advanceStage = () => {
-            const stages = ['pre', 'flop', 'turn', 'river', 'showdown'];
-            const idx = stages.indexOf(gameStage);
-            if (idx < stages.length - 1) setGameStage(stages[idx + 1]);
-        };
-
-        const resetHand = () => {
-            setCurrentHand({
-                id: null,
-                timestamp: null,
-                heroPos: currentHand.heroPos,
-                heroHoleCards: [null, null],
-                heroActions: { pre: null, flop: null, turn: null, river: null },
-                villains: [
-                    { id: 1, pos: 'BB', holeCards: [null, null], actions: { pre: null, flop: null, turn: null, river: null } }
-                ],
-                board: [null, null, null, null, null],
-            });
-            setGameStage('pre');
-            setActiveVillainIdx(0);
-            setActiveCardTarget(null);
-        };
-
-        const saveHand = () => {
-            const newHand = {
-                ...currentHand,
-                id: Date.now(),
-                timestamp: new Date().toLocaleString(),
-            };
-            setHands([newHand, ...hands]);
-            resetHand();
-            // alert("保存しました！"); 
-            // UX向上のためアラート削除、必要ならToast等を実装
-        };
-
-        const getCardDisplay = (card, fontSize = "text-xl") => {
-            if (!card) return null;
-            const suitObj = SUITS.find(s => s.name === card.suit);
-            return (
-                <>
-                    <span className={`font-bold ${suitObj?.color} ${fontSize} leading-none`}>{card.rank}</span>
-                    <span className={`text-2xl ${suitObj?.color} leading-none`}>{suitObj?.symbol}</span>
-                </>
-            );
-        };
-
-        // --- Components ---
-        const Card = ({ card, type, index, villainIdx, size = "md", placeholder = "" }) => {
-            const styles = size === "lg" 
-                ? "w-16 h-24 text-2xl" 
-                : size === "sm" ? "w-10 h-14 text-sm" 
-                : "w-12 h-16 text-lg";
-            
-            return (
-                <button
-                    onClick={() => setActiveCardTarget({ type, index, villainIdx })}
-                    className={`${styles} bg-slate-100 rounded-lg flex flex-col items-center justify-center border-2 border-slate-300 card-shadow transition-transform active:scale-95 relative overflow-hidden`}
-                >
-                    {card ? (
-                        getCardDisplay(card, size === 'lg' ? 'text-3xl' : 'text-xl')
-                    ) : (
-                        <div className="w-full h-full bg-slate-200/50 flex items-center justify-center">
-                            {placeholder && <span className="text-slate-400 text-[10px] font-bold uppercase">{placeholder}</span>}
-                        </div>
-                    )}
-                </button>
-            );
-        };
-
-        const ActionButton = ({ label, active, onClick, colorClass = "bg-slate-800 text-slate-300" }) => (
-            <button
-                onClick={onClick}
-                className={`px-3 py-3 rounded-lg text-xs font-bold border-b-4 transition-all active:scale-95 active:border-b-0 active:translate-y-1 shadow-lg shrink-0 min-w-[60px]
-                    ${active 
-                        ? 'bg-yellow-500 border-yellow-700 text-yellow-900 translate-y-1 border-b-0' 
-                        : `${colorClass} border-slate-900/50 hover:brightness-110`}`}
-            >
-                {label}
-            </button>
-        );
-
-        // --- Render ---
-        if (view === 'history') {
-            return (
-                <div className="h-[100dvh] bg-slate-900 text-slate-100 flex flex-col">
-                    <header className="h-14 flex items-center px-4 bg-slate-800 border-b border-slate-700 shrink-0">
-                        <button onClick={() => setView('table')} className="mr-4"><Icons.ArrowRight className="rotate-180" /></button>
-                        <h1 className="font-bold">履歴</h1>
-                    </header>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {hands.length === 0 && <div className="text-center text-slate-500 mt-10">履歴がありません</div>}
-                        {hands.map(hand => (
-                            <div key={hand.id} className="bg-slate-800 p-3 rounded-lg border border-slate-700">
-                                <div className="flex justify-between text-xs text-slate-400 mb-2">
-                                    <span>{hand.timestamp}</span>
-                                    <span className="font-bold text-indigo-400">{hand.heroPos} (vs {hand.villains.length})</span>
-                                </div>
-                                <div className="flex gap-2 mb-2 items-center">
-                                    <div className="flex gap-1 bg-slate-900 p-1 rounded">
-                                        <span className="text-[10px] text-slate-500 w-full text-center block">HERO</span>
-                                        {hand.heroHoleCards.map((c,i) => c ? <div key={i} className="text-xs">{c.rank}{c.suit}</div> : <span key={i} className="text-xs text-slate-700">?</span>)}
-                                    </div>
-                                    <div className="flex gap-1 bg-emerald-900 p-1 rounded flex-1 justify-center min-h-[30px]">
-                                         {hand.board.map((c,i) => c ? <div key={i} className="text-xs text-white">{c.rank}{c.suit}</div> : null)}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-
-        const activeVillain = currentHand.villains[activeVillainIdx];
-        const displayActions = gameStage === 'pre' ? PREFLOP_ACTIONS : POSTFLOP_ACTIONS;
-
-        // 日本語ラベルの取得
-        const getDealButtonLabel = () => {
-            if (gameStage === 'pre') return 'フロップを開く';
-            if (gameStage === 'flop') return 'ターンを開く';
-            if (gameStage === 'turn') return 'リバーを開く';
-            if (gameStage === 'river') return 'ショーダウン';
-            return '終了';
-        };
-
-        return (
-            <div className="h-[100dvh] w-full poker-felt flex flex-col relative overflow-hidden">
-                
-                {/* === UI HEADER === */}
-                <header className="h-12 flex justify-between items-center px-4 shrink-0 z-10 bg-black/30 backdrop-blur-sm">
-                    <button onClick={() => setView('history')} className="p-2 bg-black/40 rounded-full text-white/70 active:scale-95"><Icons.Menu /></button>
-                    <div className="text-xs font-bold text-emerald-100/50 tracking-widest">POKER RECORDER</div>
-                    <button onClick={resetHand} className="p-2 bg-black/40 rounded-full text-red-300/80 active:scale-95"><Icons.RotateCcw /></button>
-                </header>
-
-                {/* === MAIN TABLE AREA === */}
-                <main className="flex-1 flex flex-col justify-between py-2 px-2 relative z-0">
-                    
-                    {/* --- 1. VILLAIN AREA (TOP) --- */}
-                    <div className="flex flex-col gap-2 bg-black/20 p-2 rounded-xl border border-white/5 backdrop-blur-sm">
-                        
-                        {/* Villain Tabs */}
-                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-                            {currentHand.villains.map((v, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => setActiveVillainIdx(idx)}
-                                    className={`px-4 py-2 rounded-t-lg text-xs font-bold transition-colors flex items-center gap-1 min-w-[80px] justify-center
-                                        ${activeVillainIdx === idx 
-                                            ? 'bg-red-900/80 text-white border-b-2 border-red-400' 
-                                            : 'bg-black/40 text-slate-400 hover:bg-black/60'}`}
-                                >
-                                    <Icons.User size={12} /> V{idx + 1} ({v.pos})
-                                </button>
-                            ))}
-                            <button 
-                                onClick={addVillain}
-                                className="p-2 bg-slate-700 rounded-full text-slate-300 hover:bg-slate-600 active:scale-90"
-                            >
-                                <Icons.Plus size={16} />
-                            </button>
-                        </div>
-
-                        {/* Active Villain Controls */}
-                        <div className="flex flex-col gap-2 pl-1">
-                            {/* Position & Cards */}
-                            <div className="flex justify-between items-center">
-                                {/* Pos Select - ボタンサイズ拡大 */}
-                                <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[60%] py-1">
-                                    {POSITIONS.map(pos => (
-                                        <button 
-                                            key={pos}
-                                            onClick={() => updateVillain(activeVillainIdx, { pos })}
-                                            className={`px-3 py-2 text-[10px] font-bold rounded shrink-0 min-w-[36px]
-                                                ${activeVillain.pos === pos ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-500'}`}
-                                        >
-                                            {pos}
-                                        </button>
-                                    ))}
-                                </div>
-                                {/* Showdown Cards */}
-                                <div className="flex gap-1 transform scale-90 origin-right">
-                                    <Card type="villain" villainIdx={activeVillainIdx} index={0} card={activeVillain.holeCards[0]} placeholder="V" size="sm" />
-                                    <Card type="villain" villainIdx={activeVillainIdx} index={1} card={activeVillain.holeCards[1]} placeholder="V" size="sm" />
-                                </div>
-                            </div>
-
-                            {/* Villain Actions */}
-                            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
-                                {displayActions.map(act => (
-                                    <ActionButton 
-                                        key={act.id} label={act.label} colorClass="bg-red-900/60 text-red-100 border-red-950"
-                                        active={activeVillain.actions[gameStage === 'showdown' ? 'river' : gameStage] === act.id}
-                                        onClick={() => updateVillainAction(activeVillainIdx, gameStage === 'showdown' ? 'river' : gameStage, act.id)}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* --- 2. BOARD AREA (CENTER) --- */}
-                    <div className="flex flex-col items-center justify-center gap-4 my-auto">
-                        <div className="flex gap-2 items-center bg-black/20 p-2 rounded-full backdrop-blur-sm shadow-inner border border-white/5 transform scale-95">
-                            <Card type="board" index={0} card={currentHand.board[0]} placeholder="F1" />
-                            <Card type="board" index={1} card={currentHand.board[1]} placeholder="F2" />
-                            <Card type="board" index={2} card={currentHand.board[2]} placeholder="F3" />
-                            <div className="w-px bg-white/10 h-10 mx-1"></div>
-                            <div className={`transition-opacity duration-300 ${['pre','flop'].includes(gameStage) ? 'opacity-30 grayscale' : 'opacity-100'}`}>
-                                <Card type="board" index={3} card={currentHand.board[3]} placeholder="T" />
-                            </div>
-                            <div className={`transition-opacity duration-300 ${['pre','flop','turn'].includes(gameStage) ? 'opacity-30 grayscale' : 'opacity-100'}`}>
-                                <Card type="board" index={4} card={currentHand.board[4]} placeholder="R" />
-                            </div>
-                        </div>
-
-                        {gameStage !== 'showdown' && (
-                            <button 
-                                onClick={advanceStage}
-                                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-full shadow-[0_0_15px_rgba(16,185,129,0.4)] active:scale-95 transition-all text-sm flex items-center gap-2 border border-emerald-400/50"
-                            >
-                                {getDealButtonLabel()} <Icons.ArrowRight size={16} />
-                            </button>
-                        )}
-                    </div>
-
-                    {/* --- 3. HERO AREA (BOTTOM) --- */}
-                    <div className="flex flex-col gap-2 pb-safe">
-                        
-                        {/* Hero Controls - 位置調整: カードと分離 */}
-                        <div className="bg-black/30 p-2 rounded-xl border border-white/5 backdrop-blur-sm flex flex-col gap-2 mb-2">
-                             {/* Hero Pos - ボタンサイズ調整 */}
-                             <div className="flex gap-1 overflow-x-auto no-scrollbar py-1">
-                                {POSITIONS.map(pos => (
-                                    <button 
-                                        key={pos}
-                                        onClick={() => setCurrentHand({...currentHand, heroPos: pos})}
-                                        className={`px-3 py-2 text-[10px] font-bold rounded shrink-0 min-w-[36px]
-                                            ${currentHand.heroPos === pos ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-                                    >
-                                        {pos}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Hero Actions - 日本語ラベル */}
-                            <div className="flex gap-1 overflow-x-auto no-scrollbar">
-                                {displayActions.map(act => (
-                                    <ActionButton 
-                                        key={act.id} label={act.label} colorClass="bg-indigo-900/60 text-indigo-100 border-indigo-950"
-                                        active={currentHand.heroActions[gameStage === 'showdown' ? 'river' : gameStage] === act.id}
-                                        onClick={() => updateHeroAction(gameStage === 'showdown' ? 'river' : gameStage, act.id)}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Cards & Save - 重なり解消のためコンテナを分離 */}
-                        <div className="flex items-center justify-between w-full px-4">
-                            <div className="w-12"></div> {/* Spacer for alignment */}
-                            
-                            <div className="flex gap-3"> 
-                                <Card type="hero" index={0} card={currentHand.heroHoleCards[0]} size="lg" />
-                                <Card type="hero" index={1} card={currentHand.heroHoleCards[1]} size="lg" />
-                            </div>
-
-                            <button 
-                                onClick={saveHand}
-                                className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-lg text-white active:bg-blue-500 active:scale-90 transition-all border-2 border-blue-400"
-                            >
-                                <Icons.Save size={24} />
-                            </button>
-                        </div>
-                    </div>
-
-                </main>
-
-                {/* === CARD INPUT MODAL === */}
-                {activeCardTarget && (
-                    <div className="fixed inset-0 bg-black/80 z-50 flex items-end justify-center select-none animate-[fadeIn_0.1s_ease-out]">
-                        <div className="bg-slate-900 w-full max-w-md p-4 rounded-t-2xl border-t border-slate-700 pb-8">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-white font-bold text-lg">カード選択</h3>
-                                <button onClick={() => setActiveCardTarget(null)} className="p-2 bg-slate-800 rounded-full text-slate-400"><Icons.X /></button>
-                            </div>
-                            {!tempRank ? (
-                                <div className="grid grid-cols-4 gap-2">
-                                    {RANKS.map(r => (
-                                        <button key={r} onClick={() => setTempRank(r)} className="h-12 bg-slate-800 text-white font-bold rounded active:bg-indigo-600">{r}</button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-4 gap-4">
-                                    {SUITS.map(s => (
-                                        <button key={s.name} onClick={() => handleCardSelect(tempRank, s)} className="h-20 bg-slate-800 rounded flex flex-col items-center justify-center border border-slate-700 active:bg-slate-700">
-                                            <span className={`text-4xl ${s.color}`}>{s.symbol}</span>
-                                            <span className="text-white font-bold">{tempRank}</span>
-                                        </button>
-                                    ))}
-                                    <button onClick={() => setTempRank(null)} className="col-span-4 py-3 bg-slate-800 rounded text-slate-400 text-sm font-bold">戻る</button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
+      }
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-</script>
-</body>
-</html>
+    setCurrentPos(nextPos);
+    setHandCards([c1, c2]);
+    setFeedback(null);
+  };
+
+  // 初回レンダリング時
+  useEffect(() => {
+    generateNewHand();
+  }, []);
+
+  // アクション選択ハンドラ
+  const handleAction = (actionStr) => {
+    const handCat = getHandCategory(handCards[0], handCards[1]);
+    
+    // 現在のポジションのレンジデータを取得（なければ Fold 100%）
+    const posRanges = MOCK_RANGES[currentPos] || {};
+    const range = posRanges[handCat] || { r: 0, c: 0, f: 100 };
+    
+    // 混合戦略の判定: 選んだアクションの頻度が0より大きければ正解
+    let isCorrect = false;
+    if (actionStr === 'Fold' && range.f > 0) isCorrect = true;
+    if (actionStr === 'Call' && range.c > 0) isCorrect = true;
+    if (actionStr === 'Raise' && range.r > 0) isCorrect = true;
+
+    setFeedback({
+      isCorrect,
+      expectedRange: range,
+      userAction: actionStr,
+      handCat
+    });
+
+    if (isCorrect) {
+      setStreak(prev => prev + 1);
+    } else {
+      setStreak(0);
+    }
+  };
+
+  // --- UI描画用の計算 ---
+  const heroIndex = POSITIONS.indexOf(currentPos);
+  
+  // テーブル上の座席の座標（楕円形に配置）
+  // Heroは画面下部固定なので、テーブルにはHero以外の8人を配置する
+  const getPlayerStatus = (posIndex) => {
+    if (posIndex === heroIndex) return 'Hero';
+    // RFIなので、Heroより前のプレイヤーはFolded、後はWaiting
+    if (posIndex < heroIndex) return 'Folded';
+    return 'Waiting';
+  };
+
+  // スートの色
+  const getSuitColor = (suit) => {
+    if (suit === '♥' || suit === '♦') return 'text-red-500';
+    return 'text-slate-800';
+  };
+
+  if (!currentPos || handCards.length === 0) return <div className="bg-slate-900 min-h-screen text-white flex items-center justify-center">Loading...</div>;
+
+  return (
+    <div className="bg-slate-900 min-h-screen text-slate-100 font-sans flex flex-col items-center relative overflow-hidden">
+      
+      {/* ヘッダー */}
+      <div className="w-full max-w-md p-4 flex justify-between items-center border-b border-slate-700/50 bg-slate-900/80 backdrop-blur z-10">
+        <div className="text-slate-400 font-bold tracking-wider text-sm">RFI TRAINER</div>
+        <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+          <span className="text-orange-500">🔥</span>
+          <span className="font-mono font-bold">{streak}</span>
+        </div>
+      </div>
+
+      {/* メインエリア (テーブル + Hero) */}
+      <div className="flex-1 w-full max-w-md flex flex-col justify-between relative py-6 px-4">
+        
+        {/* 情報パネル */}
+        <div className="text-center mb-4 z-10">
+          <h2 className="text-2xl font-black text-white tracking-tight">{currentPos}</h2>
+          <p className="text-sm text-emerald-400 font-medium tracking-wide">Unopened Pot</p>
+        </div>
+
+        {/* 9人テーブル表現 (CSSで配置) */}
+        <div className="relative w-full h-64 my-auto flex items-center justify-center">
+          {/* テーブルの板 */}
+          <div className="absolute w-[280px] h-[140px] bg-emerald-800 rounded-full border-[12px] border-slate-700 shadow-2xl flex items-center justify-center opacity-80">
+            <span className="text-emerald-900/50 font-black text-xl tracking-widest">GTO</span>
+          </div>
+
+          {/* 他のプレイヤーの座席 (Heroを除いた8人を配置) */}
+          {POSITIONS.map((pos, idx) => {
+            if (pos === currentPos) return null; // Heroはテーブルの周囲には描画せず下部に大きく出す
+            
+            const status = getPlayerStatus(idx);
+            let statusColor = "bg-slate-700 text-slate-400";
+            if (status === 'Folded') statusColor = "bg-slate-800/50 text-slate-600 border-dashed border border-slate-600";
+            if (status === 'Waiting') statusColor = "bg-slate-700 text-slate-300 border border-slate-600 shadow-lg";
+
+            // 円形・楕円形に配置するための角度計算 (簡易版)
+            // Heroが常に一番下(270度付近)にいると仮定し、他を並べる
+            const angleStep = 360 / 9;
+            // Heroのインデックスを基準に角度をオフセットし、Heroが常に下に来るように見せる
+            const offsetIdx = (idx - heroIndex + 9) % 9; 
+            const angle = (offsetIdx * angleStep + 90) * (Math.PI / 180); // 90度ずらして下が0番目になるように
+
+            const radiusX = 160;
+            const radiusY = 90;
+            const x = Math.cos(angle) * radiusX;
+            const y = Math.sin(angle) * radiusY;
+
+            return (
+              <div 
+                key={pos} 
+                className={`absolute w-14 h-14 rounded-full flex flex-col items-center justify-center text-[10px] font-bold transition-all duration-300 ${statusColor}`}
+                style={{ transform: `translate(${x}px, ${y}px)` }}
+              >
+                <span>{pos}</span>
+                {status === 'Folded' && <span className="text-[8px] font-normal opacity-70">Fold</span>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Hero エリア (手札とアクション) */}
+        <div className="mt-8 z-10">
+          
+          {/* カード */}
+          <div className="flex justify-center gap-3 mb-8">
+            {handCards.map((card, i) => (
+              <div 
+                key={i} 
+                className={`w-20 h-28 bg-white rounded-xl shadow-xl flex flex-col justify-between p-2 border border-slate-200 transform ${i===0 ? '-rotate-6' : 'rotate-6'} transition-transform hover:scale-105`}
+              >
+                <div className={`text-xl font-black leading-none ${getSuitColor(card.suit)}`}>
+                  {card.rank}<br/><span className="text-base">{card.suit}</span>
+                </div>
+                <div className={`text-5xl self-center opacity-20 ${getSuitColor(card.suit)}`}>
+                  {card.suit}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* アクションボタン */}
+          <div className="grid grid-cols-3 gap-3">
+            <button 
+              onClick={() => handleAction('Fold')}
+              disabled={feedback !== null}
+              className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50"
+            >
+              Fold
+            </button>
+            <button 
+              onClick={() => handleAction('Call')}
+              disabled={feedback !== null}
+              className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50"
+            >
+              Call
+            </button>
+            <button 
+              onClick={() => handleAction('Raise')}
+              disabled={feedback !== null}
+              className="py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.4)] active:scale-95 transition-all disabled:opacity-50"
+            >
+              Raise
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* フィードバックモーダル (結果表示) */}
+      {feedback && (
+        <div className={`absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 ${feedback.isCorrect ? 'bg-emerald-950/70' : 'bg-rose-950/70'}`}>
+          <div className="bg-slate-800 w-full max-w-md rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-slate-700 overflow-hidden transform transition-all scale-100 animate-[fade-in_0.2s_ease-out]">
+            
+            {/* ヘッダー部分を大きく強調 */}
+            <div className={`py-8 px-4 text-center ${feedback.isCorrect ? 'bg-gradient-to-b from-emerald-400 to-emerald-600' : 'bg-gradient-to-b from-rose-500 to-rose-700'}`}>
+              <div className={`text-7xl mb-3 drop-shadow-xl ${feedback.isCorrect ? 'animate-bounce' : 'animate-pulse'}`}>
+                {feedback.isCorrect ? '🎯' : '❌'}
+              </div>
+              <h2 className="text-4xl font-black text-white tracking-widest drop-shadow-md">
+                {feedback.isCorrect ? 'EXCELLENT!' : 'BLUNDER'}
+              </h2>
+            </div>
+            
+            <div className="p-6 bg-slate-800">
+              <p className="text-center text-slate-300 mb-6 text-lg">
+                <span className="text-white font-bold text-xl">{feedback.handCat}</span> at <span className="text-white font-bold text-xl">{currentPos}</span><br/>
+                Your Action: <span className={`font-black uppercase tracking-wider text-xl ${feedback.isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>{feedback.userAction}</span>
+              </p>
+
+              {/* レンジバーの表示 */}
+              <div className="space-y-3 mb-8">
+                <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-2">GTO Range Strategy</div>
+                
+                {['Raise', 'Call', 'Fold'].map(action => {
+                  const key = action.charAt(0).toLowerCase();
+                  const freq = feedback.expectedRange[key] || 0;
+                  if (freq === 0 && action !== feedback.userAction) return null; // 頻度0で選ばれてないものは非表示
+
+                  let barColor = 'bg-slate-600';
+                  if (action === 'Raise') barColor = 'bg-emerald-500';
+                  if (action === 'Call') barColor = 'bg-blue-500';
+                  if (action === 'Fold') barColor = 'bg-slate-500';
+
+                  return (
+                    <div key={action} className="relative flex items-center bg-slate-900 rounded-lg overflow-hidden h-10 border border-slate-700/50">
+                      <div className={`absolute left-0 top-0 bottom-0 ${barColor} opacity-80`} style={{ width: `${freq}%` }}></div>
+                      <div className="relative w-full flex justify-between px-4 font-bold text-sm z-10 drop-shadow-md">
+                        <span className={freq > 0 ? 'text-white' : 'text-slate-500'}>{action}</span>
+                        <span className={freq > 0 ? 'text-white' : 'text-slate-500'}>{freq}%</span>
+                      </div>
+                      {/* ユーザーが選んだアクションにマークをつける */}
+                      {feedback.userAction === action && (
+                         <div className="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_8px_white]"></div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button 
+                onClick={generateNewHand}
+                className="w-full py-4 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-200 active:scale-95 transition-all shadow-lg"
+              >
+                Next Hand ➔
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
