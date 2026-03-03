@@ -1,356 +1,329 @@
-import React, { useState, useEffect, useMemo } from 'react';
-
-// --- 1. ポーカーの基本データ ---
-const POSITIONS = ['UTG', 'UTG+1', 'UTG+2', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
-const SUITS = ['♠', '♥', '♦', '♣'];
-const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
-
-// --- 2. GTO風レンジデータ (プロトタイプ用のダミーデータ) ---
-// r: Raise(%), c: Call(%), f: Fold(%)
-// ※記載のないハンドはすべて f: 100 とみなす
-const MOCK_RANGES = {
-  'UTG': {
-    'AA': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '77': { r: 85, f: 15 }, '66': { r: 42, f: 58 }, '55': { r: 12, f: 88 },
-    'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A5s': { r: 34, f: 66 }, 'A4s': { r: 18, f: 82 },
-    'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 88, f: 12 },
-    'QJs': { r: 100, f: 0 }, 'QTs': { r: 58, f: 42 }, 'JTs': { r: 95, f: 5 }, 'T9s': { r: 47, f: 53 }, '98s': { r: 21, f: 79 },
-    'AKo': { r: 100, f: 0 }, 'AQo': { r: 92, f: 8 }, 'AJo': { r: 23, f: 77 }, 'KQo': { r: 61, f: 39 }
-  },
-  'HJ': {
-    'AA': { r: 100, f: 0 }, '22': { r: 44, f: 56 }, '33': { r: 52, f: 48 }, '44': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 },
-    'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'A8s': { r: 58, f: 42 }, 'A5s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A3s': { r: 41, f: 59 },
-    'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'K9s': { r: 63, f: 37 },
-    'QJs': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'Q9s': { r: 45, f: 55 },
-    'JTs': { r: 100, f: 0 }, 'J9s': { r: 55, f: 45 }, 'T9s': { r: 100, f: 0 }, '98s': { r: 100, f: 0 }, '87s': { r: 62, f: 38 }, '76s': { r: 31, f: 69 },
-    'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 68, f: 32 },
-    'KQo': { r: 100, f: 0 }, 'KJo': { r: 59, f: 41 }, 'QJo': { r: 27, f: 73 }
-  },
-  'BTN': {
-    'AA': { r: 100, f: 0 }, '22': { r: 100, f: 0 }, '33': { r: 100, f: 0 }, '44': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 },
-    'AKs': { r: 100, f: 0 }, 'A2s': { r: 100, f: 0 }, 'A3s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A5s': { r: 100, f: 0 }, 'A6s': { r: 100, f: 0 }, 'A7s': { r: 100, f: 0 }, 'A8s': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 },
-    'K2s': { r: 45, f: 55 }, 'K3s': { r: 52, f: 48 }, 'K4s': { r: 67, f: 33 }, 'K5s': { r: 100, f: 0 }, 'K6s': { r: 100, f: 0 }, 'K7s': { r: 100, f: 0 }, 'K8s': { r: 100, f: 0 }, 'K9s': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KQs': { r: 100, f: 0 },
-    'Q2s': { r: 0, f: 100 }, 'Q5s': { r: 61, f: 39 }, 'Q6s': { r: 100, f: 0 }, 'Q8s': { r: 100, f: 0 }, 'Q9s': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'QJs': { r: 100, f: 0 },
-    'J7s': { r: 48, f: 52 }, 'J8s': { r: 100, f: 0 }, 'J9s': { r: 100, f: 0 }, 'JTs': { r: 100, f: 0 },
-    'T7s': { r: 62, f: 38 }, 'T8s': { r: 100, f: 0 }, 'T9s': { r: 100, f: 0 },
-    '96s': { r: 33, f: 67 }, '97s': { r: 100, f: 0 }, '98s': { r: 100, f: 0 },
-    '85s': { r: 15, f: 85 }, '86s': { r: 100, f: 0 }, '87s': { r: 100, f: 0 },
-    '75s': { r: 42, f: 58 }, '76s': { r: 100, f: 0 },
-    '64s': { r: 21, f: 79 }, '65s': { r: 100, f: 0 },
-    '54s': { r: 100, f: 0 },
-    'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 100, f: 0 }, 'A9o': { r: 100, f: 0 }, 'A8o': { r: 100, f: 0 }, 'A7o': { r: 66, f: 34 }, 'A5o': { r: 72, f: 28 }, 'A4o': { r: 38, f: 62 },
-    'KQo': { r: 100, f: 0 }, 'KJo': { r: 100, f: 0 }, 'KTo': { r: 100, f: 0 }, 'K9o': { r: 100, f: 0 }, 'K8o': { r: 55, f: 45 }, 'K7o': { r: 28, f: 72 },
-    'QJo': { r: 100, f: 0 }, 'QTo': { r: 100, f: 0 }, 'Q9o': { r: 100, f: 0 }, 'Q8o': { r: 49, f: 51 },
-    'JTo': { r: 100, f: 0 }, 'J9o': { r: 100, f: 0 }, 'J8o': { r: 63, f: 37 },
-    'T9o': { r: 100, f: 0 }, 'T8o': { r: 57, f: 43 },
-    '98o': { r: 100, f: 0 }, '97o': { r: 24, f: 76 },
-    '87o': { r: 68, f: 32 }
-  }
-};
-
-// サポートしているポジションのリスト
-const SUPPORTED_POSITIONS = Object.keys(MOCK_RANGES);
-
-// --- 3. ユーティリティ関数 ---
-const getRandomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-// 具体的なカード（例：A♠, K♥）からハンドカテゴリ（例：AKo）を生成
-const getHandCategory = (card1, card2) => {
-  const rank1Index = RANKS.indexOf(card1.rank);
-  const rank2Index = RANKS.indexOf(card2.rank);
-  
-  let highRank = card1.rank;
-  let lowRank = card2.rank;
-  
-  if (rank2Index < rank1Index) {
-    highRank = card2.rank;
-    lowRank = card1.rank;
-  }
-  
-  if (highRank === lowRank) return `${highRank}${lowRank}`;
-  const suited = card1.suit === card2.suit ? 's' : 'o';
-  return `${highRank}${lowRank}${suited}`;
-};
-
-// 1つのカードをランダム生成
-const generateRandomCard = () => {
-  return {
-    rank: getRandomElement(RANKS),
-    suit: getRandomElement(SUITS)
-  };
-};
-
-export default function App() {
-  // --- State ---
-  const [streak, setStreak] = useState(0);
-  const [currentPos, setCurrentPos] = useState('');
-  const [handCards, setHandCards] = useState([]);
-  const [feedback, setFeedback] = useState(null); // null | { isCorrect: boolean, expectedRange: object, userAction: string }
-
-  // --- ゲーム進行ロジック ---
-  const generateNewHand = () => {
-    // データがあるポジションからランダムに選択
-    const nextPos = getRandomElement(SUPPORTED_POSITIONS);
-    
-    // カードを2枚引く (同じカードが出ないようにする)
-    let c1 = generateRandomCard();
-    let c2 = generateRandomCard();
-    while (c1.rank === c2.rank && c1.suit === c2.suit) {
-      c2 = generateRandomCard();
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RFI Trainer</title>
+  <!-- Tailwind CSS を CDN から読み込み -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Tailwindでカバーしきれないカスタムアニメーション等の定義 */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
+    .animate-fade-in {
+      animation: fadeIn 0.2s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col items-center relative overflow-hidden">
+
+  <!-- ヘッダー -->
+  <div class="w-full max-w-md p-4 flex justify-between items-center border-b border-slate-700/50 bg-slate-900/80 backdrop-blur z-10">
+    <div class="text-slate-400 font-bold tracking-wider text-sm">RFI TRAINER</div>
+    <div class="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+      <span class="text-orange-500">🔥</span>
+      <span id="streak-display" class="font-mono font-bold">0</span>
+    </div>
+  </div>
+
+  <!-- メインエリア -->
+  <div class="flex-1 w-full max-w-md flex flex-col justify-between relative py-6 px-4">
     
-    // 練習アプリとして、Fold100%のゴミハンドばかり出ないように
-    // 50%の確率で、何らかのアクション頻度があるハンドを意図的に生成する（プロトタイプ用の工夫）
-    if (Math.random() > 0.5) {
-      const posRanges = MOCK_RANGES[nextPos];
-      const activeHands = Object.keys(posRanges);
-      if (activeHands.length > 0) {
-        const forcedHandCat = getRandomElement(activeHands); // 例: 'A5s'
-        c1.rank = forcedHandCat[0];
-        c2.rank = forcedHandCat[1];
-        if (forcedHandCat.length === 2) {
-          // ポケットペア
-          c1.suit = '♠'; c2.suit = '♥';
-        } else if (forcedHandCat[2] === 's') {
-          // スーテッド
-          const s = getRandomElement(SUITS);
-          c1.suit = s; c2.suit = s;
-        } else {
-          // オフスート
-          c1.suit = '♠'; c2.suit = '♥';
+    <!-- 情報パネル -->
+    <div class="text-center mb-4 z-10">
+      <h2 id="current-pos-display" class="text-2xl font-black text-white tracking-tight">--</h2>
+      <p class="text-sm text-emerald-400 font-medium tracking-wide">Unopened Pot</p>
+    </div>
+
+    <!-- 9人テーブル表現 -->
+    <div class="relative w-full h-64 my-auto flex items-center justify-center" id="table-container">
+      <!-- テーブルの板 -->
+      <div class="absolute w-[280px] h-[140px] bg-emerald-800 rounded-full border-[12px] border-slate-700 shadow-2xl flex items-center justify-center opacity-80">
+        <span class="text-emerald-900/50 font-black text-xl tracking-widest">GTO</span>
+      </div>
+      <!-- 他のプレイヤーの座席はJSで動的に生成されます -->
+      <div id="seats-container" class="absolute inset-0 flex items-center justify-center"></div>
+    </div>
+
+    <!-- Hero エリア (手札とアクション) -->
+    <div class="mt-8 z-10">
+      <!-- カード -->
+      <div id="cards-container" class="flex justify-center gap-3 mb-8">
+        <!-- カード1 -->
+        <div id="card-1" class="w-20 h-28 bg-white rounded-xl shadow-xl flex flex-col justify-between p-2 border border-slate-200 transform -rotate-6 transition-transform hover:scale-105">
+          <div class="text-xl font-black leading-none card-text"></div>
+          <div class="text-5xl self-center opacity-20 card-bg-suit"></div>
+        </div>
+        <!-- カード2 -->
+        <div id="card-2" class="w-20 h-28 bg-white rounded-xl shadow-xl flex flex-col justify-between p-2 border border-slate-200 transform rotate-6 transition-transform hover:scale-105">
+          <div class="text-xl font-black leading-none card-text"></div>
+          <div class="text-5xl self-center opacity-20 card-bg-suit"></div>
+        </div>
+      </div>
+
+      <!-- アクションボタン -->
+      <div class="grid grid-cols-3 gap-3">
+        <button id="btn-fold" onclick="handleAction('Fold')" class="py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50">Fold</button>
+        <button id="btn-call" onclick="handleAction('Call')" class="py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50">Call</button>
+        <button id="btn-raise" onclick="handleAction('Raise')" class="py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.4)] active:scale-95 transition-all disabled:opacity-50">Raise</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- フィードバックモーダル (結果表示) -->
+  <div id="feedback-modal" class="hidden absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 animate-fade-in">
+    <div class="bg-slate-800 w-full max-w-md rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-slate-700 overflow-hidden transform transition-all scale-100">
+      
+      <!-- ヘッダー部分 -->
+      <div id="modal-header" class="py-8 px-4 text-center">
+        <div id="modal-icon" class="text-7xl mb-3 drop-shadow-xl"></div>
+        <h2 id="modal-title" class="text-4xl font-black text-white tracking-widest drop-shadow-md"></h2>
+      </div>
+      
+      <div class="p-6 bg-slate-800">
+        <p class="text-center text-slate-300 mb-6 text-lg">
+          <span id="modal-hand-pos" class="text-white font-bold text-xl"></span><br/>
+          Your Action: <span id="modal-user-action" class="font-black uppercase tracking-wider text-xl"></span>
+        </p>
+
+        <!-- レンジバーの表示 -->
+        <div class="space-y-3 mb-8">
+          <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mb-2">GTO Range Strategy</div>
+          <div id="modal-range-bars"></div>
+        </div>
+
+        <button onclick="generateNewHand()" class="w-full py-4 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-200 active:scale-95 transition-all shadow-lg">
+          Next Hand ➔
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- 1. ポーカーの基本データ ---
+    const POSITIONS = ['UTG', 'UTG+1', 'UTG+2', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+    const SUITS = ['♠', '♥', '♦', '♣'];
+    const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+
+    // --- 2. GTO風レンジデータ ---
+    const MOCK_RANGES = {
+      'UTG': {
+        'AA': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '77': { r: 85, f: 15 }, '66': { r: 42, f: 58 }, '55': { r: 12, f: 88 },
+        'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A5s': { r: 34, f: 66 }, 'A4s': { r: 18, f: 82 },
+        'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 88, f: 12 },
+        'QJs': { r: 100, f: 0 }, 'QTs': { r: 58, f: 42 }, 'JTs': { r: 95, f: 5 }, 'T9s': { r: 47, f: 53 }, '98s': { r: 21, f: 79 },
+        'AKo': { r: 100, f: 0 }, 'AQo': { r: 92, f: 8 }, 'AJo': { r: 23, f: 77 }, 'KQo': { r: 61, f: 39 }
+      },
+      'HJ': {
+        'AA': { r: 100, f: 0 }, '22': { r: 44, f: 56 }, '33': { r: 52, f: 48 }, '44': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 },
+        'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'A8s': { r: 58, f: 42 }, 'A5s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A3s': { r: 41, f: 59 },
+        'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'K9s': { r: 63, f: 37 },
+        'QJs': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'Q9s': { r: 45, f: 55 },
+        'JTs': { r: 100, f: 0 }, 'J9s': { r: 55, f: 45 }, 'T9s': { r: 100, f: 0 }, '98s': { r: 100, f: 0 }, '87s': { r: 62, f: 38 }, '76s': { r: 31, f: 69 },
+        'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 68, f: 32 },
+        'KQo': { r: 100, f: 0 }, 'KJo': { r: 59, f: 41 }, 'QJo': { r: 27, f: 73 }
+      },
+      'BTN': {
+        'AA': { r: 100, f: 0 }, '22': { r: 100, f: 0 }, '33': { r: 100, f: 0 }, '44': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 },
+        'AKs': { r: 100, f: 0 }, 'A2s': { r: 100, f: 0 }, 'A3s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A5s': { r: 100, f: 0 }, 'A6s': { r: 100, f: 0 }, 'A7s': { r: 100, f: 0 }, 'A8s': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 },
+        'K2s': { r: 45, f: 55 }, 'K3s': { r: 52, f: 48 }, 'K4s': { r: 67, f: 33 }, 'K5s': { r: 100, f: 0 }, 'K6s': { r: 100, f: 0 }, 'K7s': { r: 100, f: 0 }, 'K8s': { r: 100, f: 0 }, 'K9s': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KQs': { r: 100, f: 0 },
+        'Q2s': { r: 0, f: 100 }, 'Q5s': { r: 61, f: 39 }, 'Q6s': { r: 100, f: 0 }, 'Q8s': { r: 100, f: 0 }, 'Q9s': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'QJs': { r: 100, f: 0 },
+        'J7s': { r: 48, f: 52 }, 'J8s': { r: 100, f: 0 }, 'J9s': { r: 100, f: 0 }, 'JTs': { r: 100, f: 0 },
+        'T7s': { r: 62, f: 38 }, 'T8s': { r: 100, f: 0 }, 'T9s': { r: 100, f: 0 },
+        '96s': { r: 33, f: 67 }, '97s': { r: 100, f: 0 }, '98s': { r: 100, f: 0 },
+        '85s': { r: 15, f: 85 }, '86s': { r: 100, f: 0 }, '87s': { r: 100, f: 0 },
+        '75s': { r: 42, f: 58 }, '76s': { r: 100, f: 0 },
+        '64s': { r: 21, f: 79 }, '65s': { r: 100, f: 0 },
+        '54s': { r: 100, f: 0 },
+        'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 100, f: 0 }, 'A9o': { r: 100, f: 0 }, 'A8o': { r: 100, f: 0 }, 'A7o': { r: 66, f: 34 }, 'A5o': { r: 72, f: 28 }, 'A4o': { r: 38, f: 62 },
+        'KQo': { r: 100, f: 0 }, 'KJo': { r: 100, f: 0 }, 'KTo': { r: 100, f: 0 }, 'K9o': { r: 100, f: 0 }, 'K8o': { r: 55, f: 45 }, 'K7o': { r: 28, f: 72 },
+        'QJo': { r: 100, f: 0 }, 'QTo': { r: 100, f: 0 }, 'Q9o': { r: 100, f: 0 }, 'Q8o': { r: 49, f: 51 },
+        'JTo': { r: 100, f: 0 }, 'J9o': { r: 100, f: 0 }, 'J8o': { r: 63, f: 37 },
+        'T9o': { r: 100, f: 0 }, 'T8o': { r: 57, f: 43 },
+        '98o': { r: 100, f: 0 }, '97o': { r: 24, f: 76 },
+        '87o': { r: 68, f: 32 }
+      }
+    };
+    const SUPPORTED_POSITIONS = Object.keys(MOCK_RANGES);
+
+    // --- State Variables ---
+    let streak = 0;
+    let currentPos = '';
+    let handCards = [];
+    let isWaitingForNext = false;
+
+    // --- Utils ---
+    const getRandomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const getHandCategory = (card1, card2) => {
+      const r1 = RANKS.indexOf(card1.rank);
+      const r2 = RANKS.indexOf(card2.rank);
+      let high = card1.rank, low = card2.rank;
+      if (r2 < r1) { high = card2.rank; low = card1.rank; }
+      if (high === low) return `${high}${low}`;
+      return `${high}${low}${card1.suit === card2.suit ? 's' : 'o'}`;
+    };
+    const generateRandomCard = () => ({ rank: getRandomElement(RANKS), suit: getRandomElement(SUITS) });
+    const getSuitColorClass = (suit) => (suit === '♥' || suit === '♦') ? 'text-red-500' : 'text-slate-800';
+
+    // --- Core Logic ---
+    function generateNewHand() {
+      // Hide Modal
+      document.getElementById('feedback-modal').classList.add('hidden');
+      document.getElementById('feedback-modal').classList.remove('flex');
+      // Enable buttons
+      document.getElementById('btn-fold').disabled = false;
+      document.getElementById('btn-call').disabled = false;
+      document.getElementById('btn-raise').disabled = false;
+      isWaitingForNext = false;
+
+      // Generate Data
+      currentPos = getRandomElement(SUPPORTED_POSITIONS);
+      let c1 = generateRandomCard();
+      let c2 = generateRandomCard();
+      while (c1.rank === c2.rank && c1.suit === c2.suit) { c2 = generateRandomCard(); }
+
+      // Force mixed strategy hands 50% of time for training
+      if (Math.random() > 0.5) {
+        const activeHands = Object.keys(MOCK_RANGES[currentPos]);
+        if (activeHands.length > 0) {
+          const forcedHandCat = getRandomElement(activeHands);
+          c1.rank = forcedHandCat[0]; c2.rank = forcedHandCat[1];
+          if (forcedHandCat.length === 2) {
+            c1.suit = '♠'; c2.suit = '♥';
+          } else if (forcedHandCat[2] === 's') {
+            const s = getRandomElement(SUITS);
+            c1.suit = s; c2.suit = s;
+          } else {
+            c1.suit = '♠'; c2.suit = '♥';
+          }
         }
+      }
+
+      handCards = [c1, c2];
+      renderUI();
+    }
+
+    function handleAction(actionStr) {
+      if (isWaitingForNext) return;
+      isWaitingForNext = true;
+
+      // Disable buttons
+      document.getElementById('btn-fold').disabled = true;
+      document.getElementById('btn-call').disabled = true;
+      document.getElementById('btn-raise').disabled = true;
+
+      const handCat = getHandCategory(handCards[0], handCards[1]);
+      const range = (MOCK_RANGES[currentPos] || {})[handCat] || { r: 0, c: 0, f: 100 };
+      
+      let isCorrect = false;
+      if (actionStr === 'Fold' && range.f > 0) isCorrect = true;
+      if (actionStr === 'Call' && range.c > 0) isCorrect = true;
+      if (actionStr === 'Raise' && range.r > 0) isCorrect = true;
+
+      if (isCorrect) streak++; else streak = 0;
+      document.getElementById('streak-display').innerText = streak;
+
+      showFeedbackModal(isCorrect, actionStr, handCat, range);
+    }
+
+    // --- Rendering ---
+    function renderUI() {
+      document.getElementById('current-pos-display').innerText = currentPos;
+      
+      // Render Table Seats
+      const seatsContainer = document.getElementById('seats-container');
+      seatsContainer.innerHTML = '';
+      const heroIndex = POSITIONS.indexOf(currentPos);
+      
+      POSITIONS.forEach((pos, idx) => {
+        if (pos === currentPos) return;
+        const isFolded = idx < heroIndex;
+        
+        let statusColor = isFolded 
+          ? "bg-slate-800/50 text-slate-600 border-dashed border border-slate-600" 
+          : "bg-slate-700 text-slate-300 border border-slate-600 shadow-lg";
+
+        const offsetIdx = (idx - heroIndex + 9) % 9; 
+        const angle = (offsetIdx * (360 / 9) + 90) * (Math.PI / 180);
+        const x = Math.cos(angle) * 160;
+        const y = Math.sin(angle) * 90;
+
+        const el = document.createElement('div');
+        el.className = `absolute w-14 h-14 rounded-full flex flex-col items-center justify-center text-[10px] font-bold transition-all duration-300 ${statusColor}`;
+        el.style.transform = `translate(${x}px, ${y}px)`;
+        el.innerHTML = `<span>${pos}</span>${isFolded ? '<span class="text-[8px] font-normal opacity-70">Fold</span>' : ''}`;
+        seatsContainer.appendChild(el);
+      });
+
+      // Render Cards
+      for (let i = 0; i < 2; i++) {
+        const card = handCards[i];
+        const cardEl = document.getElementById(`card-${i+1}`);
+        const textContainer = cardEl.querySelector('.card-text');
+        const bgContainer = cardEl.querySelector('.card-bg-suit');
+        
+        const colorClass = getSuitColorClass(card.suit);
+        // Remove existing color classes
+        textContainer.className = `text-xl font-black leading-none card-text ${colorClass}`;
+        bgContainer.className = `text-5xl self-center opacity-20 card-bg-suit ${colorClass}`;
+        
+        textContainer.innerHTML = `${card.rank}<br/><span class="text-base">${card.suit}</span>`;
+        bgContainer.innerHTML = card.suit;
       }
     }
 
-    setCurrentPos(nextPos);
-    setHandCards([c1, c2]);
-    setFeedback(null);
-  };
+    function showFeedbackModal(isCorrect, userAction, handCat, range) {
+      const modal = document.getElementById('feedback-modal');
+      const header = document.getElementById('modal-header');
+      const icon = document.getElementById('modal-icon');
+      const title = document.getElementById('modal-title');
+      const handPosText = document.getElementById('modal-hand-pos');
+      const userActionText = document.getElementById('modal-user-action');
+      const barsContainer = document.getElementById('modal-range-bars');
 
-  // 初回レンダリング時
-  useEffect(() => {
-    generateNewHand();
-  }, []);
-
-  // アクション選択ハンドラ
-  const handleAction = (actionStr) => {
-    const handCat = getHandCategory(handCards[0], handCards[1]);
-    
-    // 現在のポジションのレンジデータを取得（なければ Fold 100%）
-    const posRanges = MOCK_RANGES[currentPos] || {};
-    const range = posRanges[handCat] || { r: 0, c: 0, f: 100 };
-    
-    // 混合戦略の判定: 選んだアクションの頻度が0より大きければ正解
-    let isCorrect = false;
-    if (actionStr === 'Fold' && range.f > 0) isCorrect = true;
-    if (actionStr === 'Call' && range.c > 0) isCorrect = true;
-    if (actionStr === 'Raise' && range.r > 0) isCorrect = true;
-
-    setFeedback({
-      isCorrect,
-      expectedRange: range,
-      userAction: actionStr,
-      handCat
-    });
-
-    if (isCorrect) {
-      setStreak(prev => prev + 1);
-    } else {
-      setStreak(0);
-    }
-  };
-
-  // --- UI描画用の計算 ---
-  const heroIndex = POSITIONS.indexOf(currentPos);
-  
-  // テーブル上の座席の座標（楕円形に配置）
-  // Heroは画面下部固定なので、テーブルにはHero以外の8人を配置する
-  const getPlayerStatus = (posIndex) => {
-    if (posIndex === heroIndex) return 'Hero';
-    // RFIなので、Heroより前のプレイヤーはFolded、後はWaiting
-    if (posIndex < heroIndex) return 'Folded';
-    return 'Waiting';
-  };
-
-  // スートの色
-  const getSuitColor = (suit) => {
-    if (suit === '♥' || suit === '♦') return 'text-red-500';
-    return 'text-slate-800';
-  };
-
-  if (!currentPos || handCards.length === 0) return <div className="bg-slate-900 min-h-screen text-white flex items-center justify-center">Loading...</div>;
-
-  return (
-    <div className="bg-slate-900 min-h-screen text-slate-100 font-sans flex flex-col items-center relative overflow-hidden">
+      // Setup styles based on correctness
+      modal.className = `absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 animate-fade-in ${isCorrect ? 'bg-emerald-950/70' : 'bg-rose-950/70'}`;
+      header.className = `py-8 px-4 text-center ${isCorrect ? 'bg-gradient-to-b from-emerald-400 to-emerald-600' : 'bg-gradient-to-b from-rose-500 to-rose-700'}`;
+      icon.className = `text-7xl mb-3 drop-shadow-xl ${isCorrect ? 'animate-bounce' : 'animate-pulse'}`;
+      icon.innerText = isCorrect ? '🎯' : '❌';
+      title.innerText = isCorrect ? 'EXCELLENT!' : 'BLUNDER';
       
-      {/* ヘッダー */}
-      <div className="w-full max-w-md p-4 flex justify-between items-center border-b border-slate-700/50 bg-slate-900/80 backdrop-blur z-10">
-        <div className="text-slate-400 font-bold tracking-wider text-sm">RFI TRAINER</div>
-        <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-          <span className="text-orange-500">🔥</span>
-          <span className="font-mono font-bold">{streak}</span>
-        </div>
-      </div>
+      handPosText.innerHTML = `${handCat} <span class="text-slate-300 font-normal">at</span> ${currentPos}`;
+      userActionText.innerText = userAction;
+      userActionText.className = `font-black uppercase tracking-wider text-xl ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`;
 
-      {/* メインエリア (テーブル + Hero) */}
-      <div className="flex-1 w-full max-w-md flex flex-col justify-between relative py-6 px-4">
-        
-        {/* 情報パネル */}
-        <div className="text-center mb-4 z-10">
-          <h2 className="text-2xl font-black text-white tracking-tight">{currentPos}</h2>
-          <p className="text-sm text-emerald-400 font-medium tracking-wide">Unopened Pot</p>
-        </div>
+      // Setup Bars
+      barsContainer.innerHTML = '';
+      ['Raise', 'Call', 'Fold'].forEach(action => {
+        const key = action.charAt(0).toLowerCase();
+        const freq = range[key] || 0;
+        if (freq === 0 && action !== userAction) return;
 
-        {/* 9人テーブル表現 (CSSで配置) */}
-        <div className="relative w-full h-64 my-auto flex items-center justify-center">
-          {/* テーブルの板 */}
-          <div className="absolute w-[280px] h-[140px] bg-emerald-800 rounded-full border-[12px] border-slate-700 shadow-2xl flex items-center justify-center opacity-80">
-            <span className="text-emerald-900/50 font-black text-xl tracking-widest">GTO</span>
-          </div>
+        let barColor = action === 'Raise' ? 'bg-emerald-500' : (action === 'Call' ? 'bg-blue-500' : 'bg-slate-500');
 
-          {/* 他のプレイヤーの座席 (Heroを除いた8人を配置) */}
-          {POSITIONS.map((pos, idx) => {
-            if (pos === currentPos) return null; // Heroはテーブルの周囲には描画せず下部に大きく出す
-            
-            const status = getPlayerStatus(idx);
-            let statusColor = "bg-slate-700 text-slate-400";
-            if (status === 'Folded') statusColor = "bg-slate-800/50 text-slate-600 border-dashed border border-slate-600";
-            if (status === 'Waiting') statusColor = "bg-slate-700 text-slate-300 border border-slate-600 shadow-lg";
-
-            // 円形・楕円形に配置するための角度計算 (簡易版)
-            // Heroが常に一番下(270度付近)にいると仮定し、他を並べる
-            const angleStep = 360 / 9;
-            // Heroのインデックスを基準に角度をオフセットし、Heroが常に下に来るように見せる
-            const offsetIdx = (idx - heroIndex + 9) % 9; 
-            const angle = (offsetIdx * angleStep + 90) * (Math.PI / 180); // 90度ずらして下が0番目になるように
-
-            const radiusX = 160;
-            const radiusY = 90;
-            const x = Math.cos(angle) * radiusX;
-            const y = Math.sin(angle) * radiusY;
-
-            return (
-              <div 
-                key={pos} 
-                className={`absolute w-14 h-14 rounded-full flex flex-col items-center justify-center text-[10px] font-bold transition-all duration-300 ${statusColor}`}
-                style={{ transform: `translate(${x}px, ${y}px)` }}
-              >
-                <span>{pos}</span>
-                {status === 'Folded' && <span className="text-[8px] font-normal opacity-70">Fold</span>}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Hero エリア (手札とアクション) */}
-        <div className="mt-8 z-10">
-          
-          {/* カード */}
-          <div className="flex justify-center gap-3 mb-8">
-            {handCards.map((card, i) => (
-              <div 
-                key={i} 
-                className={`w-20 h-28 bg-white rounded-xl shadow-xl flex flex-col justify-between p-2 border border-slate-200 transform ${i===0 ? '-rotate-6' : 'rotate-6'} transition-transform hover:scale-105`}
-              >
-                <div className={`text-xl font-black leading-none ${getSuitColor(card.suit)}`}>
-                  {card.rank}<br/><span className="text-base">{card.suit}</span>
-                </div>
-                <div className={`text-5xl self-center opacity-20 ${getSuitColor(card.suit)}`}>
-                  {card.suit}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* アクションボタン */}
-          <div className="grid grid-cols-3 gap-3">
-            <button 
-              onClick={() => handleAction('Fold')}
-              disabled={feedback !== null}
-              className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50"
-            >
-              Fold
-            </button>
-            <button 
-              onClick={() => handleAction('Call')}
-              disabled={feedback !== null}
-              className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50"
-            >
-              Call
-            </button>
-            <button 
-              onClick={() => handleAction('Raise')}
-              disabled={feedback !== null}
-              className="py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.4)] active:scale-95 transition-all disabled:opacity-50"
-            >
-              Raise
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      {/* フィードバックモーダル (結果表示) */}
-      {feedback && (
-        <div className={`absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 ${feedback.isCorrect ? 'bg-emerald-950/70' : 'bg-rose-950/70'}`}>
-          <div className="bg-slate-800 w-full max-w-md rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-slate-700 overflow-hidden transform transition-all scale-100 animate-[fade-in_0.2s_ease-out]">
-            
-            {/* ヘッダー部分を大きく強調 */}
-            <div className={`py-8 px-4 text-center ${feedback.isCorrect ? 'bg-gradient-to-b from-emerald-400 to-emerald-600' : 'bg-gradient-to-b from-rose-500 to-rose-700'}`}>
-              <div className={`text-7xl mb-3 drop-shadow-xl ${feedback.isCorrect ? 'animate-bounce' : 'animate-pulse'}`}>
-                {feedback.isCorrect ? '🎯' : '❌'}
-              </div>
-              <h2 className="text-4xl font-black text-white tracking-widest drop-shadow-md">
-                {feedback.isCorrect ? 'EXCELLENT!' : 'BLUNDER'}
-              </h2>
+        const barHtml = `
+          <div class="relative flex items-center bg-slate-900 rounded-lg overflow-hidden h-10 border border-slate-700/50">
+            <div class="absolute left-0 top-0 bottom-0 ${barColor} opacity-80" style="width: ${freq}%"></div>
+            <div class="relative w-full flex justify-between px-4 font-bold text-sm z-10 drop-shadow-md">
+              <span class="${freq > 0 ? 'text-white' : 'text-slate-500'}">${action}</span>
+              <span class="${freq > 0 ? 'text-white' : 'text-slate-500'}">${freq}%</span>
             </div>
-            
-            <div className="p-6 bg-slate-800">
-              <p className="text-center text-slate-300 mb-6 text-lg">
-                <span className="text-white font-bold text-xl">{feedback.handCat}</span> at <span className="text-white font-bold text-xl">{currentPos}</span><br/>
-                Your Action: <span className={`font-black uppercase tracking-wider text-xl ${feedback.isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>{feedback.userAction}</span>
-              </p>
-
-              {/* レンジバーの表示 */}
-              <div className="space-y-3 mb-8">
-                <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-2">GTO Range Strategy</div>
-                
-                {['Raise', 'Call', 'Fold'].map(action => {
-                  const key = action.charAt(0).toLowerCase();
-                  const freq = feedback.expectedRange[key] || 0;
-                  if (freq === 0 && action !== feedback.userAction) return null; // 頻度0で選ばれてないものは非表示
-
-                  let barColor = 'bg-slate-600';
-                  if (action === 'Raise') barColor = 'bg-emerald-500';
-                  if (action === 'Call') barColor = 'bg-blue-500';
-                  if (action === 'Fold') barColor = 'bg-slate-500';
-
-                  return (
-                    <div key={action} className="relative flex items-center bg-slate-900 rounded-lg overflow-hidden h-10 border border-slate-700/50">
-                      <div className={`absolute left-0 top-0 bottom-0 ${barColor} opacity-80`} style={{ width: `${freq}%` }}></div>
-                      <div className="relative w-full flex justify-between px-4 font-bold text-sm z-10 drop-shadow-md">
-                        <span className={freq > 0 ? 'text-white' : 'text-slate-500'}>{action}</span>
-                        <span className={freq > 0 ? 'text-white' : 'text-slate-500'}>{freq}%</span>
-                      </div>
-                      {/* ユーザーが選んだアクションにマークをつける */}
-                      {feedback.userAction === action && (
-                         <div className="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_8px_white]"></div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <button 
-                onClick={generateNewHand}
-                className="w-full py-4 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-200 active:scale-95 transition-all shadow-lg"
-              >
-                Next Hand ➔
-              </button>
-            </div>
+            ${userAction === action ? '<div class="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_8px_white]"></div>' : ''}
           </div>
-        </div>
-      )}
+        `;
+        barsContainer.innerHTML += barHtml;
+      });
 
-    </div>
-  );
-}
+      // Show modal
+      modal.classList.remove('hidden');
+    }
+
+    // Initialize
+    window.onload = () => {
+      generateNewHand();
+    };
+  </script>
+</body>
+</html>
