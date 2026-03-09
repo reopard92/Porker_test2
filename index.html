@@ -3,111 +3,198 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>RFI Trainer</title>
+  <title>ポーカー トレーナー</title>
   <!-- Tailwind CSS を CDN から読み込み -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Tailwindでカバーしきれないカスタムアニメーション等の定義 */
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    .animate-fade-in {
-      animation: fadeIn 0.2s ease-out forwards;
-    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans h-[100dvh] flex flex-col items-center relative overflow-hidden">
 
-  <!-- ヘッダー -->
-  <div class="w-full max-w-md p-3 sm:p-4 flex justify-between items-center border-b border-slate-700/50 bg-slate-900/80 backdrop-blur z-10">
-    <div class="text-slate-400 font-bold tracking-wider text-sm">RFI TRAINER</div>
-    <div class="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-      <span class="text-orange-500">🔥</span>
-      <span id="streak-display" class="font-mono font-bold">0</span>
-    </div>
-  </div>
-
-  <!-- メインエリア -->
-  <div class="flex-1 w-full max-w-md flex flex-col justify-between relative py-4 px-2 sm:py-6 sm:px-4">
+  <!-- ===================================== -->
+  <!-- 1. スタート（モード選択）画面 -->
+  <!-- ===================================== -->
+  <div id="screen-start" class="w-full h-full flex flex-col items-center justify-center p-4 z-20 absolute inset-0 bg-slate-900">
+    <div class="text-6xl mb-4 animate-bounce">🃏</div>
+    <h1 class="text-4xl sm:text-5xl font-black text-white mb-2 tracking-widest text-center drop-shadow-lg">POKER<br>TRAINER</h1>
+    <p class="text-slate-400 mb-12 text-center font-bold tracking-widest text-sm">ドリルを選択</p>
     
-    <!-- 情報パネル -->
-    <div class="text-center mb-2 sm:mb-4 z-10">
-      <h2 id="current-pos-display" class="text-2xl font-black text-white tracking-tight">--</h2>
-      <p class="text-sm text-emerald-400 font-medium tracking-wide">Unopened Pot</p>
+    <div class="w-full max-w-xs space-y-4">
+      <button onclick="startMode('rfi')" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition-all border border-emerald-400/30">
+        <div class="text-xl tracking-wider mb-1">RFI トレーナー</div>
+        <div class="text-xs font-normal opacity-80 uppercase tracking-widest">プリフロップ レンジ</div>
+      </button>
+      
+      <button onclick="startMode('odds')" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.3)] active:scale-95 transition-all border border-blue-400/30">
+        <div class="text-xl tracking-wider mb-1">オッズ計算</div>
+        <div class="text-xs font-normal opacity-80 uppercase tracking-widest">ポットオッズと必要勝率</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================================== -->
+  <!-- 2. RFI Trainer 画面 (既存機能) -->
+  <!-- ===================================== -->
+  <div id="screen-rfi" class="hidden w-full h-full flex flex-col items-center relative absolute inset-0">
+    <!-- ヘッダー -->
+    <div class="w-full max-w-md p-3 sm:p-4 flex justify-between items-center border-b border-slate-700/50 bg-slate-900/80 backdrop-blur z-10">
+      <button onclick="showStartScreen()" class="text-slate-400 hover:text-white px-3 py-1.5 bg-slate-800 rounded-lg text-sm font-bold active:scale-95 transition-all">◀ 戻る</button>
+      <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+        <span class="text-orange-500 text-sm">🔥</span>
+        <span id="rfi-streak-display" class="font-mono font-bold text-sm">0</span>
+      </div>
     </div>
 
-    <!-- 9人テーブル表現 -->
-    <div class="relative w-full h-52 sm:h-64 my-auto flex items-center justify-center" id="table-container">
-      <!-- テーブルの板 -->
-      <div class="absolute w-[220px] h-[110px] sm:w-[280px] sm:h-[140px] bg-emerald-800 rounded-full border-[8px] sm:border-[12px] border-slate-700 shadow-2xl flex items-center justify-center opacity-80">
-        <span class="text-emerald-900/50 font-black text-lg sm:text-xl tracking-widest">GTO</span>
+    <!-- メインエリア -->
+    <div class="flex-1 w-full max-w-md flex flex-col justify-between relative py-4 px-2 sm:py-6 sm:px-4">
+      <!-- 情報パネル -->
+      <div class="text-center mb-2 sm:mb-4 z-10">
+        <h2 id="current-pos-display" class="text-2xl font-black text-white tracking-tight">--</h2>
+        <p class="text-sm text-emerald-400 font-medium tracking-wide">未オープンのポット</p>
       </div>
-      <!-- 他のプレイヤーの座席はJSで動的に生成されます -->
-      <div id="seats-container" class="absolute inset-0 flex items-center justify-center"></div>
+
+      <!-- 9人テーブル表現 -->
+      <div class="relative w-full h-52 sm:h-64 my-auto flex items-center justify-center" id="table-container">
+        <div class="absolute w-[220px] h-[110px] sm:w-[280px] sm:h-[140px] bg-emerald-800 rounded-full border-[8px] sm:border-[12px] border-slate-700 shadow-2xl flex items-center justify-center opacity-80">
+          <span class="text-emerald-900/50 font-black text-lg sm:text-xl tracking-widest">GTO</span>
+        </div>
+        <div id="seats-container" class="absolute inset-0 flex items-center justify-center"></div>
+      </div>
+
+      <!-- Hero エリア (手札とアクション) -->
+      <div class="mt-4 sm:mt-8 z-10">
+        <div id="cards-container" class="flex justify-center gap-3 mb-6 sm:mb-8">
+          <div id="card-1" class="w-16 h-24 sm:w-20 sm:h-28 bg-white rounded-xl shadow-xl flex flex-col justify-between p-2 border border-slate-200 transform -rotate-6 transition-transform hover:scale-105">
+            <div class="text-lg sm:text-xl font-black leading-none card-text"></div>
+            <div class="text-4xl sm:text-5xl self-center opacity-20 card-bg-suit"></div>
+          </div>
+          <div id="card-2" class="w-16 h-24 sm:w-20 sm:h-28 bg-white rounded-xl shadow-xl flex flex-col justify-between p-2 border border-slate-200 transform rotate-6 transition-transform hover:scale-105">
+            <div class="text-lg sm:text-xl font-black leading-none card-text"></div>
+            <div class="text-4xl sm:text-5xl self-center opacity-20 card-bg-suit"></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 sm:gap-3">
+          <button id="btn-fold" onclick="handleRFIAction('Fold')" class="py-3 sm:py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50">フォールド</button>
+          <button id="btn-call" onclick="handleRFIAction('Call')" class="py-3 sm:py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50">コール</button>
+          <button id="btn-raise" onclick="handleRFIAction('Raise')" class="py-3 sm:py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.4)] active:scale-95 transition-all disabled:opacity-50">レイズ</button>
+        </div>
+      </div>
     </div>
 
-    <!-- Hero エリア (手札とアクション) -->
-    <div class="mt-4 sm:mt-8 z-10">
-      <!-- カード -->
-      <div id="cards-container" class="flex justify-center gap-3 mb-6 sm:mb-8">
-        <!-- カード1 -->
-        <div id="card-1" class="w-16 h-24 sm:w-20 sm:h-28 bg-white rounded-xl shadow-xl flex flex-col justify-between p-2 border border-slate-200 transform -rotate-6 transition-transform hover:scale-105">
-          <div class="text-lg sm:text-xl font-black leading-none card-text"></div>
-          <div class="text-4xl sm:text-5xl self-center opacity-20 card-bg-suit"></div>
+    <!-- フィードバックモーダル (RFI) -->
+    <div id="rfi-feedback-modal" class="hidden absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 animate-fade-in">
+      <div class="bg-slate-800 w-full max-w-md rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-slate-700 overflow-hidden transform transition-all scale-100 mb-4 sm:mb-0">
+        <div id="rfi-modal-header" class="py-6 sm:py-8 px-4 text-center">
+          <div id="rfi-modal-icon" class="text-6xl sm:text-7xl mb-2 sm:mb-3 drop-shadow-xl"></div>
+          <h2 id="rfi-modal-title" class="text-3xl sm:text-4xl font-black text-white tracking-widest drop-shadow-md"></h2>
         </div>
-        <!-- カード2 -->
-        <div id="card-2" class="w-16 h-24 sm:w-20 sm:h-28 bg-white rounded-xl shadow-xl flex flex-col justify-between p-2 border border-slate-200 transform rotate-6 transition-transform hover:scale-105">
-          <div class="text-lg sm:text-xl font-black leading-none card-text"></div>
-          <div class="text-4xl sm:text-5xl self-center opacity-20 card-bg-suit"></div>
+        <div class="p-6 bg-slate-800">
+          <p class="text-center text-slate-300 mb-6 text-lg">
+            <span id="rfi-modal-hand-pos" class="text-white font-bold text-xl"></span><br/>
+            あなたのアクション: <span id="rfi-modal-user-action" class="font-black uppercase tracking-wider text-xl"></span>
+          </p>
+          <div class="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
+            <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mb-2">GTO推奨アクション</div>
+            <div id="rfi-modal-range-bars"></div>
+          </div>
+          <button onclick="generateRFIHand()" class="w-full py-3 sm:py-4 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-200 active:scale-95 transition-all shadow-lg">次のハンドへ ➔</button>
         </div>
-      </div>
-
-      <!-- アクションボタン -->
-      <div class="grid grid-cols-3 gap-2 sm:gap-3">
-        <button id="btn-fold" onclick="handleAction('Fold')" class="py-3 sm:py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50">Fold</button>
-        <button id="btn-call" onclick="handleAction('Call')" class="py-3 sm:py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-600 active:scale-95 transition-all disabled:opacity-50">Call</button>
-        <button id="btn-raise" onclick="handleAction('Raise')" class="py-3 sm:py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.4)] active:scale-95 transition-all disabled:opacity-50">Raise</button>
       </div>
     </div>
   </div>
 
-  <!-- フィードバックモーダル (結果表示) -->
-  <div id="feedback-modal" class="hidden absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 animate-fade-in">
-    <div class="bg-slate-800 w-full max-w-md rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-slate-700 overflow-hidden transform transition-all scale-100 mb-4 sm:mb-0">
-      
-      <!-- ヘッダー部分 -->
-      <div id="modal-header" class="py-6 sm:py-8 px-4 text-center">
-        <div id="modal-icon" class="text-6xl sm:text-7xl mb-2 sm:mb-3 drop-shadow-xl"></div>
-        <h2 id="modal-title" class="text-3xl sm:text-4xl font-black text-white tracking-widest drop-shadow-md"></h2>
+  <!-- ===================================== -->
+  <!-- 3. Odds Calculator 画面 (新機能) -->
+  <!-- ===================================== -->
+  <div id="screen-odds" class="hidden w-full h-full flex flex-col items-center relative absolute inset-0">
+    <!-- ヘッダー -->
+    <div class="w-full max-w-md p-3 sm:p-4 flex justify-between items-center border-b border-slate-700/50 bg-slate-900/80 backdrop-blur z-10">
+      <button onclick="showStartScreen()" class="text-slate-400 hover:text-white px-3 py-1.5 bg-slate-800 rounded-lg text-sm font-bold active:scale-95 transition-all">◀ 戻る</button>
+      <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+        <span class="text-orange-500 text-sm">🔥</span>
+        <span id="odds-streak-display" class="font-mono font-bold text-sm">0</span>
       </div>
-      
-      <div class="p-6 bg-slate-800">
-        <p class="text-center text-slate-300 mb-6 text-lg">
-          <span id="modal-hand-pos" class="text-white font-bold text-xl"></span><br/>
-          Your Action: <span id="modal-user-action" class="font-black uppercase tracking-wider text-xl"></span>
-        </p>
+    </div>
 
-        <!-- レンジバーの表示 -->
-        <div class="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
-          <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mb-2">GTO Range Strategy</div>
-          <div id="modal-range-bars"></div>
+    <!-- メインエリア -->
+    <div class="flex-1 w-full max-w-md flex flex-col justify-center py-6 px-4">
+      
+      <!-- タイトル -->
+      <div class="text-center mb-8">
+        <h2 class="text-sm text-blue-400 font-bold tracking-widest mb-1 uppercase">必要勝率ドリル</h2>
+        <div class="text-3xl font-black text-white">オッズは？</div>
+      </div>
+
+      <!-- ポットとベットの表示 -->
+      <div class="bg-slate-800 rounded-3xl p-6 border border-slate-700 shadow-xl mb-8 flex flex-col items-center relative">
+        <div class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">現在のポット</div>
+        <div id="odds-pot-display" class="text-4xl font-black text-white mb-6 tracking-tight">$0</div>
+        
+        <div class="w-full border-t border-slate-700/50 mb-6 relative">
+          <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-800 px-3 text-slate-500 text-sm font-bold rounded-full border border-slate-700/50">VS</div>
         </div>
 
-        <button onclick="generateNewHand()" class="w-full py-3 sm:py-4 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-200 active:scale-95 transition-all shadow-lg">
-          Next Hand ➔
-        </button>
+        <div class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">相手のベット</div>
+        <div class="flex items-baseline gap-2 mb-2">
+          <span id="odds-bet-display" class="text-5xl font-black text-rose-400 tracking-tight">$0</span>
+        </div>
+      </div>
+
+      <!-- 4択ボタン (JSで中身を生成) -->
+      <div class="grid grid-cols-2 gap-3" id="odds-choices-container"></div>
+      
+    </div>
+
+    <!-- フィードバックモーダル (Odds) -->
+    <div id="odds-feedback-modal" class="hidden absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 animate-fade-in">
+      <div class="bg-slate-800 w-full max-w-md rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-slate-700 overflow-hidden transform transition-all scale-100 mb-4 sm:mb-0">
+        <div id="odds-modal-header" class="py-6 sm:py-8 px-4 text-center">
+          <div id="odds-modal-icon" class="text-6xl sm:text-7xl mb-2 sm:mb-3 drop-shadow-xl"></div>
+          <h2 id="odds-modal-title" class="text-3xl sm:text-4xl font-black text-white tracking-widest drop-shadow-md"></h2>
+        </div>
+        <div class="p-6 bg-slate-800">
+          <div id="odds-modal-desc" class="text-center"></div>
+          <button onclick="generateOddsQuestion()" class="w-full py-3 sm:py-4 mt-6 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-200 active:scale-95 transition-all shadow-lg">次の問題へ ➔</button>
+        </div>
       </div>
     </div>
   </div>
+
 
   <script>
-    // --- 1. ポーカーの基本データ ---
+    // ==========================================
+    // 画面切り替えロジック
+    // ==========================================
+    function showStartScreen() {
+      document.getElementById('screen-start').classList.remove('hidden');
+      document.getElementById('screen-rfi').classList.add('hidden');
+      document.getElementById('screen-odds').classList.add('hidden');
+    }
+
+    function startMode(mode) {
+      document.getElementById('screen-start').classList.add('hidden');
+      if (mode === 'rfi') {
+        document.getElementById('screen-rfi').classList.remove('hidden');
+        generateRFIHand();
+        window.addEventListener('resize', renderRFIUI);
+      } else if (mode === 'odds') {
+        document.getElementById('screen-odds').classList.remove('hidden');
+        generateOddsQuestion();
+      }
+    }
+
+    // 共通ユーティリティ
+    const getRandomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // ==========================================
+    // RFI Trainer のロジック
+    // ==========================================
     const POSITIONS = ['UTG', 'UTG+1', 'UTG+2', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
     const SUITS = ['♠', '♥', '♦', '♣'];
     const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
-
-    // --- 2. GTO風レンジデータ ---
     const MOCK_RANGES = {
       'UTG': {
         'AA': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '77': { r: 85, f: 15 }, '66': { r: 42, f: 58 }, '55': { r: 12, f: 88 },
@@ -117,27 +204,45 @@
         'AKo': { r: 100, f: 0 }, 'AQo': { r: 92, f: 8 }, 'AJo': { r: 23, f: 77 }, 'KQo': { r: 61, f: 39 }
       },
       'HJ': {
-        'AA': { r: 100, f: 0 }, '22': { r: 44, f: 56 }, '33': { r: 52, f: 48 }, '44': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 },
+        'AA': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '44': { r: 100, f: 0 }, '33': { r: 52, f: 48 }, '22': { r: 44, f: 56 },
         'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'A8s': { r: 58, f: 42 }, 'A5s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A3s': { r: 41, f: 59 },
         'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'K9s': { r: 63, f: 37 },
         'QJs': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'Q9s': { r: 45, f: 55 },
-        'JTs': { r: 100, f: 0 }, 'J9s': { r: 55, f: 45 }, 'T9s': { r: 100, f: 0 }, '98s': { r: 100, f: 0 }, '87s': { r: 62, f: 38 }, '76s': { r: 31, f: 69 },
+        'JTs': { r: 100, f: 0 }, 'J9s': { r: 55, f: 45 }, 'T9s': { r: 100, f: 0 }, '87s': { r: 62, f: 38 }, '76s': { r: 31, f: 69 },
         'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 68, f: 32 },
         'KQo': { r: 100, f: 0 }, 'KJo': { r: 59, f: 41 }, 'QJo': { r: 27, f: 73 }
       },
+      'CO': { 
+        'AA': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '44': { r: 100, f: 0 }, '33': { r: 100, f: 0 }, '22': { r: 100, f: 0 },
+        'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'A8s': { r: 100, f: 0 }, 'A7s': { r: 100, f: 0 }, 'A6s': { r: 100, f: 0 }, 'A5s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A3s': { r: 100, f: 0 }, 'A2s': { r: 100, f: 0 },
+        'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'K9s': { r: 100, f: 0 }, 'K8s': { r: 100, f: 0 }, 'K7s': { r: 100, f: 0 }, 'K6s': { r: 100, f: 0 }, 'K5s': { r: 100, f: 0 }, 'K4s': { r: 50, f: 50 }, 'K3s': { r: 40, f: 60 }, 'K2s': { r: 30, f: 70 },
+        'QJs': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'Q9s': { r: 100, f: 0 }, 'Q8s': { r: 100, f: 0 }, 'Q7s': { r: 50, f: 50 }, 'Q6s': { r: 20, f: 80 },
+        'JTs': { r: 100, f: 0 }, 'J9s': { r: 100, f: 0 }, 'J8s': { r: 100, f: 0 }, 'J7s': { r: 80, f: 20 },
+        'T9s': { r: 100, f: 0 }, 'T8s': { r: 100, f: 0 }, 'T7s': { r: 60, f: 40 },
+        '98s': { r: 100, f: 0 }, '97s': { r: 100, f: 0 }, '96s': { r: 30, f: 70 },
+        '87s': { r: 100, f: 0 }, '86s': { r: 80, f: 20 },
+        '76s': { r: 100, f: 0 }, '75s': { r: 50, f: 50 },
+        '65s': { r: 100, f: 0 }, '64s': { r: 30, f: 70 },
+        '54s': { r: 80, f: 20 },
+        'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 100, f: 0 }, 'A9o': { r: 100, f: 0 }, 'A8o': { r: 50, f: 50 }, 'A7o': { r: 20, f: 80 }, 'A5o': { r: 30, f: 70 },
+        'KQo': { r: 100, f: 0 }, 'KJo': { r: 100, f: 0 }, 'KTo': { r: 100, f: 0 }, 'K9o': { r: 80, f: 20 },
+        'QJo': { r: 100, f: 0 }, 'QTo': { r: 100, f: 0 }, 'Q9o': { r: 50, f: 50 },
+        'JTo': { r: 100, f: 0 }, 'J9o': { r: 40, f: 60 },
+        'T9o': { r: 80, f: 20 }
+      },
       'BTN': {
-        'AA': { r: 100, f: 0 }, '22': { r: 100, f: 0 }, '33': { r: 100, f: 0 }, '44': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 },
-        'AKs': { r: 100, f: 0 }, 'A2s': { r: 100, f: 0 }, 'A3s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A5s': { r: 100, f: 0 }, 'A6s': { r: 100, f: 0 }, 'A7s': { r: 100, f: 0 }, 'A8s': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 },
-        'K2s': { r: 45, f: 55 }, 'K3s': { r: 52, f: 48 }, 'K4s': { r: 67, f: 33 }, 'K5s': { r: 100, f: 0 }, 'K6s': { r: 100, f: 0 }, 'K7s': { r: 100, f: 0 }, 'K8s': { r: 100, f: 0 }, 'K9s': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KQs': { r: 100, f: 0 },
-        'Q2s': { r: 0, f: 100 }, 'Q5s': { r: 61, f: 39 }, 'Q6s': { r: 100, f: 0 }, 'Q8s': { r: 100, f: 0 }, 'Q9s': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'QJs': { r: 100, f: 0 },
-        'J7s': { r: 48, f: 52 }, 'J8s': { r: 100, f: 0 }, 'J9s': { r: 100, f: 0 }, 'JTs': { r: 100, f: 0 },
-        'T7s': { r: 62, f: 38 }, 'T8s': { r: 100, f: 0 }, 'T9s': { r: 100, f: 0 },
-        '96s': { r: 33, f: 67 }, '97s': { r: 100, f: 0 }, '98s': { r: 100, f: 0 },
-        '85s': { r: 15, f: 85 }, '86s': { r: 100, f: 0 }, '87s': { r: 100, f: 0 },
-        '75s': { r: 42, f: 58 }, '76s': { r: 100, f: 0 },
-        '64s': { r: 21, f: 79 }, '65s': { r: 100, f: 0 },
+        'AA': { r: 100, f: 0 }, 'KK': { r: 100, f: 0 }, 'QQ': { r: 100, f: 0 }, 'JJ': { r: 100, f: 0 }, 'TT': { r: 100, f: 0 }, '99': { r: 100, f: 0 }, '88': { r: 100, f: 0 }, '77': { r: 100, f: 0 }, '66': { r: 100, f: 0 }, '55': { r: 100, f: 0 }, '44': { r: 100, f: 0 }, '33': { r: 100, f: 0 }, '22': { r: 100, f: 0 },
+        'AKs': { r: 100, f: 0 }, 'AQs': { r: 100, f: 0 }, 'AJs': { r: 100, f: 0 }, 'ATs': { r: 100, f: 0 }, 'A9s': { r: 100, f: 0 }, 'A8s': { r: 100, f: 0 }, 'A7s': { r: 100, f: 0 }, 'A6s': { r: 100, f: 0 }, 'A5s': { r: 100, f: 0 }, 'A4s': { r: 100, f: 0 }, 'A3s': { r: 100, f: 0 }, 'A2s': { r: 100, f: 0 },
+        'KQs': { r: 100, f: 0 }, 'KJs': { r: 100, f: 0 }, 'KTs': { r: 100, f: 0 }, 'K9s': { r: 100, f: 0 }, 'K8s': { r: 100, f: 0 }, 'K7s': { r: 100, f: 0 }, 'K6s': { r: 100, f: 0 }, 'K5s': { r: 100, f: 0 }, 'K4s': { r: 67, f: 33 }, 'K3s': { r: 52, f: 48 }, 'K2s': { r: 45, f: 55 },
+        'QJs': { r: 100, f: 0 }, 'QTs': { r: 100, f: 0 }, 'Q9s': { r: 100, f: 0 }, 'Q8s': { r: 100, f: 0 }, 'Q7s': { r: 100, f: 0 }, 'Q6s': { r: 100, f: 0 }, 'Q5s': { r: 61, f: 39 }, 'Q4s': { r: 20, f: 80 },
+        'JTs': { r: 100, f: 0 }, 'J9s': { r: 100, f: 0 }, 'J8s': { r: 100, f: 0 }, 'J7s': { r: 48, f: 52 },
+        'T9s': { r: 100, f: 0 }, 'T8s': { r: 100, f: 0 }, 'T7s': { r: 62, f: 38 },
+        '98s': { r: 100, f: 0 }, '97s': { r: 100, f: 0 }, '96s': { r: 33, f: 67 },
+        '87s': { r: 100, f: 0 }, '86s': { r: 100, f: 0 }, '85s': { r: 15, f: 85 },
+        '76s': { r: 100, f: 0 }, '75s': { r: 42, f: 58 },
+        '65s': { r: 100, f: 0 }, '64s': { r: 21, f: 79 },
         '54s': { r: 100, f: 0 },
-        'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 100, f: 0 }, 'A9o': { r: 100, f: 0 }, 'A8o': { r: 100, f: 0 }, 'A7o': { r: 66, f: 34 }, 'A5o': { r: 72, f: 28 }, 'A4o': { r: 38, f: 62 },
+        'AKo': { r: 100, f: 0 }, 'AQo': { r: 100, f: 0 }, 'AJo': { r: 100, f: 0 }, 'ATo': { r: 100, f: 0 }, 'A9o': { r: 100, f: 0 }, 'A8o': { r: 100, f: 0 }, 'A7o': { r: 66, f: 34 }, 'A6o': { r: 20, f: 80 }, 'A5o': { r: 72, f: 28 }, 'A4o': { r: 38, f: 62 }, 'A3o': { r: 10, f: 90 },
         'KQo': { r: 100, f: 0 }, 'KJo': { r: 100, f: 0 }, 'KTo': { r: 100, f: 0 }, 'K9o': { r: 100, f: 0 }, 'K8o': { r: 55, f: 45 }, 'K7o': { r: 28, f: 72 },
         'QJo': { r: 100, f: 0 }, 'QTo': { r: 100, f: 0 }, 'Q9o': { r: 100, f: 0 }, 'Q8o': { r: 49, f: 51 },
         'JTo': { r: 100, f: 0 }, 'J9o': { r: 100, f: 0 }, 'J8o': { r: 63, f: 37 },
@@ -147,18 +252,13 @@
       }
     };
     const SUPPORTED_POSITIONS = Object.keys(MOCK_RANGES);
+    let rfiStreak = 0;
+    let rfiCurrentPos = '';
+    let rfiHandCards = [];
+    let rfiIsWaiting = false;
 
-    // --- State Variables ---
-    let streak = 0;
-    let currentPos = '';
-    let handCards = [];
-    let isWaitingForNext = false;
-
-    // --- Utils ---
-    const getRandomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
     const getHandCategory = (card1, card2) => {
-      const r1 = RANKS.indexOf(card1.rank);
-      const r2 = RANKS.indexOf(card2.rank);
+      const r1 = RANKS.indexOf(card1.rank), r2 = RANKS.indexOf(card2.rank);
       let high = card1.rank, low = card2.rank;
       if (r2 < r1) { high = card2.rank; low = card1.rank; }
       if (high === low) return `${high}${low}`;
@@ -167,95 +267,73 @@
     const generateRandomCard = () => ({ rank: getRandomElement(RANKS), suit: getRandomElement(SUITS) });
     const getSuitColorClass = (suit) => (suit === '♥' || suit === '♦') ? 'text-red-500' : 'text-slate-800';
 
-    // --- Core Logic ---
-    function generateNewHand() {
-      // Hide Modal
-      document.getElementById('feedback-modal').classList.add('hidden');
-      document.getElementById('feedback-modal').classList.remove('flex');
-      // Enable buttons
+    function generateRFIHand() {
+      document.getElementById('rfi-feedback-modal').classList.add('hidden');
       document.getElementById('btn-fold').disabled = false;
       document.getElementById('btn-call').disabled = false;
       document.getElementById('btn-raise').disabled = false;
-      isWaitingForNext = false;
+      rfiIsWaiting = false;
 
-      // Generate Data
-      currentPos = getRandomElement(SUPPORTED_POSITIONS);
-      let c1 = generateRandomCard();
-      let c2 = generateRandomCard();
-      while (c1.rank === c2.rank && c1.suit === c2.suit) { c2 = generateRandomCard(); }
+      rfiCurrentPos = getRandomElement(SUPPORTED_POSITIONS);
+      let c1 = generateRandomCard(), c2 = generateRandomCard();
+      while (c1.rank === c2.rank && c1.suit === c2.suit) c2 = generateRandomCard();
 
-      // Force mixed strategy hands 50% of time for training
       if (Math.random() > 0.5) {
-        const activeHands = Object.keys(MOCK_RANGES[currentPos]);
+        const activeHands = Object.keys(MOCK_RANGES[rfiCurrentPos]);
         if (activeHands.length > 0) {
-          const forcedHandCat = getRandomElement(activeHands);
-          c1.rank = forcedHandCat[0]; c2.rank = forcedHandCat[1];
-          if (forcedHandCat.length === 2) {
-            c1.suit = '♠'; c2.suit = '♥';
-          } else if (forcedHandCat[2] === 's') {
-            const s = getRandomElement(SUITS);
-            c1.suit = s; c2.suit = s;
-          } else {
-            c1.suit = '♠'; c2.suit = '♥';
-          }
+          const cat = getRandomElement(activeHands);
+          c1.rank = cat[0]; c2.rank = cat[1];
+          if (cat.length === 2) { c1.suit = '♠'; c2.suit = '♥'; }
+          else if (cat[2] === 's') { const s = getRandomElement(SUITS); c1.suit = s; c2.suit = s; }
+          else { c1.suit = '♠'; c2.suit = '♥'; }
         }
       }
-
-      handCards = [c1, c2];
-      renderUI();
+      rfiHandCards = [c1, c2];
+      renderRFIUI();
     }
 
-    function handleAction(actionStr) {
-      if (isWaitingForNext) return;
-      isWaitingForNext = true;
-
-      // Disable buttons
+    function handleRFIAction(actionStr) {
+      if (rfiIsWaiting) return;
+      rfiIsWaiting = true;
       document.getElementById('btn-fold').disabled = true;
       document.getElementById('btn-call').disabled = true;
       document.getElementById('btn-raise').disabled = true;
 
-      const handCat = getHandCategory(handCards[0], handCards[1]);
-      const range = (MOCK_RANGES[currentPos] || {})[handCat] || { r: 0, c: 0, f: 100 };
+      const actionMap = { 'Fold': 'Fold', 'Call': 'Call', 'Raise': 'Raise' };
+      const engAction = actionMap[actionStr] || actionStr;
+
+      const cat = getHandCategory(rfiHandCards[0], rfiHandCards[1]);
+      const range = (MOCK_RANGES[rfiCurrentPos] || {})[cat] || { r: 0, c: 0, f: 100 };
       
       let isCorrect = false;
-      if (actionStr === 'Fold' && range.f > 0) isCorrect = true;
-      if (actionStr === 'Call' && range.c > 0) isCorrect = true;
-      if (actionStr === 'Raise' && range.r > 0) isCorrect = true;
+      if (engAction === 'Fold' && range.f > 0) isCorrect = true;
+      if (engAction === 'Call' && range.c > 0) isCorrect = true;
+      if (engAction === 'Raise' && range.r > 0) isCorrect = true;
 
-      if (isCorrect) streak++; else streak = 0;
-      document.getElementById('streak-display').innerText = streak;
+      if (isCorrect) rfiStreak++; else rfiStreak = 0;
+      document.getElementById('rfi-streak-display').innerText = rfiStreak;
 
-      showFeedbackModal(isCorrect, actionStr, handCat, range);
+      const jpActionStr = engAction === 'Fold' ? 'フォールド' : (engAction === 'Call' ? 'コール' : 'レイズ');
+      showRFIFeedback(isCorrect, jpActionStr, engAction, cat, range);
     }
 
-    // --- Rendering ---
-    function renderUI() {
-      document.getElementById('current-pos-display').innerText = currentPos;
-      
-      // Render Table Seats
+    function renderRFIUI() {
+      document.getElementById('current-pos-display').innerText = rfiCurrentPos;
       const seatsContainer = document.getElementById('seats-container');
       seatsContainer.innerHTML = '';
-      const heroIndex = POSITIONS.indexOf(currentPos);
-      
-      // スマホ画面幅(400px未満)の場合にテーブルと座席を縮小
+      const heroIndex = POSITIONS.indexOf(rfiCurrentPos);
       const isMobile = window.innerWidth < 400;
       const radiusX = isMobile ? 120 : 160;
       const radiusY = isMobile ? 70 : 90;
       const seatBaseClass = isMobile ? 'w-11 h-11 text-[9px]' : 'w-14 h-14 text-[10px]';
       
       POSITIONS.forEach((pos, idx) => {
-        if (pos === currentPos) return;
+        if (pos === rfiCurrentPos) return;
         const isFolded = idx < heroIndex;
-        
-        let statusColor = isFolded 
-          ? "bg-slate-800/50 text-slate-600 border-dashed border border-slate-600" 
-          : "bg-slate-700 text-slate-300 border border-slate-600 shadow-lg";
-
-        const offsetIdx = (idx - heroIndex + 9) % 9; 
-        const angle = (offsetIdx * (360 / 9) + 90) * (Math.PI / 180);
+        let statusColor = isFolded ? "bg-slate-800/50 text-slate-600 border-dashed border border-slate-600" : "bg-slate-700 text-slate-300 border border-slate-600 shadow-lg";
+        const angle = (((idx - heroIndex + 9) % 9) * (360 / 9) + 90) * (Math.PI / 180);
         const x = Math.cos(angle) * radiusX;
         const y = Math.sin(angle) * radiusY;
-
         const el = document.createElement('div');
         el.className = `absolute ${seatBaseClass} rounded-full flex flex-col items-center justify-center font-bold transition-all duration-300 ${statusColor}`;
         el.style.transform = `translate(${x}px, ${y}px)`;
@@ -263,74 +341,149 @@
         seatsContainer.appendChild(el);
       });
 
-      // Render Cards
       for (let i = 0; i < 2; i++) {
-        const card = handCards[i];
+        const card = rfiHandCards[i];
         const cardEl = document.getElementById(`card-${i+1}`);
-        const textContainer = cardEl.querySelector('.card-text');
-        const bgContainer = cardEl.querySelector('.card-bg-suit');
-        
         const colorClass = getSuitColorClass(card.suit);
-        // Remove existing color classes
-        textContainer.className = `text-lg sm:text-xl font-black leading-none card-text ${colorClass}`;
-        bgContainer.className = `text-4xl sm:text-5xl self-center opacity-20 card-bg-suit ${colorClass}`;
-        
-        textContainer.innerHTML = `${card.rank}<br/><span class="text-sm sm:text-base">${card.suit}</span>`;
-        bgContainer.innerHTML = card.suit;
+        cardEl.querySelector('.card-text').className = `text-lg sm:text-xl font-black leading-none card-text ${colorClass}`;
+        cardEl.querySelector('.card-bg-suit').className = `text-4xl sm:text-5xl self-center opacity-20 card-bg-suit ${colorClass}`;
+        cardEl.querySelector('.card-text').innerHTML = `${card.rank}<br/><span class="text-sm sm:text-base">${card.suit}</span>`;
+        cardEl.querySelector('.card-bg-suit').innerHTML = card.suit;
       }
     }
 
-    function showFeedbackModal(isCorrect, userAction, handCat, range) {
-      const modal = document.getElementById('feedback-modal');
-      const header = document.getElementById('modal-header');
-      const icon = document.getElementById('modal-icon');
-      const title = document.getElementById('modal-title');
-      const handPosText = document.getElementById('modal-hand-pos');
-      const userActionText = document.getElementById('modal-user-action');
-      const barsContainer = document.getElementById('modal-range-bars');
-
-      // Setup styles based on correctness
+    function showRFIFeedback(isCorrect, jpUserAction, engAction, handCat, range) {
+      const modal = document.getElementById('rfi-feedback-modal');
       modal.className = `absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 animate-fade-in ${isCorrect ? 'bg-emerald-950/70' : 'bg-rose-950/70'}`;
-      header.className = `py-8 px-4 text-center ${isCorrect ? 'bg-gradient-to-b from-emerald-400 to-emerald-600' : 'bg-gradient-to-b from-rose-500 to-rose-700'}`;
-      icon.className = `text-7xl mb-3 drop-shadow-xl ${isCorrect ? 'animate-bounce' : 'animate-pulse'}`;
-      icon.innerText = isCorrect ? '🎯' : '❌';
-      title.innerText = isCorrect ? 'EXCELLENT!' : 'BLUNDER';
-      
-      handPosText.innerHTML = `${handCat} <span class="text-slate-300 font-normal">at</span> ${currentPos}`;
-      userActionText.innerText = userAction;
-      userActionText.className = `font-black uppercase tracking-wider text-xl ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`;
+      document.getElementById('rfi-modal-header').className = `py-6 sm:py-8 px-4 text-center ${isCorrect ? 'bg-gradient-to-b from-emerald-400 to-emerald-600' : 'bg-gradient-to-b from-rose-500 to-rose-700'}`;
+      document.getElementById('rfi-modal-icon').className = `text-6xl sm:text-7xl mb-2 sm:mb-3 drop-shadow-xl ${isCorrect ? 'animate-bounce' : 'animate-pulse'}`;
+      document.getElementById('rfi-modal-icon').innerText = isCorrect ? '🎯' : '❌';
+      document.getElementById('rfi-modal-title').innerText = isCorrect ? '正解！' : 'ミス！';
+      document.getElementById('rfi-modal-hand-pos').innerHTML = `<span class="text-white font-bold">${rfiCurrentPos}</span> <span class="text-slate-300 font-normal">での</span> ${handCat}`;
+      document.getElementById('rfi-modal-user-action').innerText = jpUserAction;
+      document.getElementById('rfi-modal-user-action').className = `font-black uppercase tracking-wider text-xl ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`;
 
-      // Setup Bars
+      const barsContainer = document.getElementById('rfi-modal-range-bars');
       barsContainer.innerHTML = '';
       ['Raise', 'Call', 'Fold'].forEach(action => {
-        const key = action.charAt(0).toLowerCase();
-        const freq = range[key] || 0;
-        if (freq === 0 && action !== userAction) return;
-
+        const freq = range[action.charAt(0).toLowerCase()] || 0;
+        if (freq === 0 && action !== engAction) return;
         let barColor = action === 'Raise' ? 'bg-emerald-500' : (action === 'Call' ? 'bg-blue-500' : 'bg-slate-500');
-
-        const barHtml = `
+        const jpLabel = action === 'Raise' ? 'レイズ' : (action === 'Call' ? 'コール' : 'フォールド');
+        barsContainer.innerHTML += `
           <div class="relative flex items-center bg-slate-900 rounded-lg overflow-hidden h-10 border border-slate-700/50">
             <div class="absolute left-0 top-0 bottom-0 ${barColor} opacity-80" style="width: ${freq}%"></div>
             <div class="relative w-full flex justify-between px-4 font-bold text-sm z-10 drop-shadow-md">
-              <span class="${freq > 0 ? 'text-white' : 'text-slate-500'}">${action}</span>
+              <span class="${freq > 0 ? 'text-white' : 'text-slate-500'}">${jpLabel}</span>
               <span class="${freq > 0 ? 'text-white' : 'text-slate-500'}">${freq}%</span>
             </div>
-            ${userAction === action ? '<div class="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_8px_white]"></div>' : ''}
+            ${engAction === action ? '<div class="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_8px_white]"></div>' : ''}
           </div>
         `;
-        barsContainer.innerHTML += barHtml;
       });
-
-      // Show modal
       modal.classList.remove('hidden');
     }
 
-    // Initialize
-    window.onload = () => {
-      generateNewHand();
-      window.addEventListener('resize', renderUI); // 画面回転やウィンドウのサイズ変更に自動対応
-    };
+    // ==========================================
+    // Odds Calculator のロジック
+    // ==========================================
+    const BET_SIZES = [
+      { label: '1/4 ポット', multiplier: 0.25, equity: 17 },
+      { label: '1/3 ポット', multiplier: 0.33, equity: 20 },
+      { label: 'ハーフポット', multiplier: 0.50, equity: 25 },
+      { label: '2/3 ポット', multiplier: 0.67, equity: 29 },
+      { label: '3/4 ポット', multiplier: 0.75, equity: 30 },
+      { label: 'ポットサイズ',   multiplier: 1.00, equity: 33 },
+      { label: '1.5倍 ポット', multiplier: 1.50, equity: 38 },
+      { label: '2倍 ポット',   multiplier: 2.00, equity: 40 }
+    ];
+
+    let oddsStreak = 0;
+    let currentOddsQ = null;
+    let oddsIsWaiting = false;
+
+    function generateOddsQuestion() {
+      document.getElementById('odds-feedback-modal').classList.add('hidden');
+      oddsIsWaiting = false;
+
+      // ランダムなポット額 (10〜200)
+      const pot = Math.floor(Math.random() * 20 + 1) * 10;
+      // ランダムなベットサイズ
+      const betType = getRandomElement(BET_SIZES);
+      // ベット額の計算 (整数に丸める)
+      const bet = Math.round(pot * betType.multiplier);
+
+      currentOddsQ = {
+        pot: pot,
+        bet: bet,
+        label: betType.label,
+        correctEquity: betType.equity
+      };
+
+      // UIの更新
+      document.getElementById('odds-pot-display').innerText = `$${currentOddsQ.pot}`;
+      document.getElementById('odds-bet-display').innerText = `$${currentOddsQ.bet}`;
+
+      // 4択の選択肢を生成 (正解 + ランダムな間違い3つ)
+      let choices = [currentOddsQ.correctEquity];
+      while(choices.length < 4) {
+        const randomBet = getRandomElement(BET_SIZES);
+        if (!choices.includes(randomBet.equity)) choices.push(randomBet.equity);
+      }
+      // シャッフル
+      choices.sort(() => Math.random() - 0.5);
+
+      const container = document.getElementById('odds-choices-container');
+      container.innerHTML = '';
+      choices.forEach(val => {
+        const btn = document.createElement('button');
+        btn.className = "py-6 bg-slate-800 hover:bg-slate-700 text-white text-3xl font-black rounded-2xl border border-slate-600 active:scale-95 transition-all shadow-[0_4px_0_rgb(71,85,105)] active:shadow-[0_0px_0_rgb(71,85,105)] active:translate-y-1";
+        btn.innerText = `${val}%`;
+        btn.onclick = () => handleOddsAction(val);
+        container.appendChild(btn);
+      });
+    }
+
+    function handleOddsAction(selectedEquity) {
+      if (oddsIsWaiting) return;
+      oddsIsWaiting = true;
+
+      const isCorrect = (selectedEquity === currentOddsQ.correctEquity);
+      
+      if (isCorrect) oddsStreak++; else oddsStreak = 0;
+      document.getElementById('odds-streak-display').innerText = oddsStreak;
+
+      showOddsFeedback(isCorrect, selectedEquity, currentOddsQ.correctEquity);
+    }
+
+    function showOddsFeedback(isCorrect, selected, correct) {
+      const modal = document.getElementById('odds-feedback-modal');
+      modal.className = `absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-md transition-all duration-300 animate-fade-in ${isCorrect ? 'bg-blue-950/70' : 'bg-rose-950/70'}`;
+      document.getElementById('odds-modal-header').className = `py-6 sm:py-8 px-4 text-center ${isCorrect ? 'bg-gradient-to-b from-blue-500 to-blue-700' : 'bg-gradient-to-b from-rose-500 to-rose-700'}`;
+      document.getElementById('odds-modal-icon').className = `text-6xl sm:text-7xl mb-2 sm:mb-3 drop-shadow-xl ${isCorrect ? 'animate-bounce' : 'animate-pulse'}`;
+      document.getElementById('odds-modal-icon').innerText = isCorrect ? '🎯' : '❌';
+      document.getElementById('odds-modal-title').innerText = isCorrect ? '正解！' : '不正解';
+      
+      const totalPot = currentOddsQ.pot + currentOddsQ.bet * 2;
+      
+      document.getElementById('odds-modal-desc').innerHTML = `
+        <div class="text-slate-300 mb-6 text-lg">
+          必要勝率: <span class="text-white font-black text-3xl px-2">${correct}%</span><br/>
+          あなたの回答: <span class="font-bold text-xl ${isCorrect ? 'text-blue-400' : 'text-rose-400'}">${selected}%</span>
+        </div>
+        
+        <div class="text-sm text-slate-300 bg-slate-900/80 p-4 rounded-xl border border-slate-700 text-left space-y-2 font-mono">
+          <div class="text-xs text-slate-500 font-bold uppercase tracking-widest mb-2 border-b border-slate-700 pb-1">計算式</div>
+          <p>リスク: <span class="text-rose-400">$${currentOddsQ.bet}</span> (コール額)</p>
+          <p>リワード: <span class="text-emerald-400">$${totalPot}</span> (最終ポット)</p>
+          <div class="mt-2 pt-2 border-t border-slate-700/50">
+            ${currentOddsQ.bet} / ${totalPot} = <span class="text-white font-bold">${((currentOddsQ.bet / totalPot) * 100).toFixed(1)}%</span>
+          </div>
+        </div>
+      `;
+      modal.classList.remove('hidden');
+    }
+
   </script>
 </body>
 </html>
